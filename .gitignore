@@ -42,6 +42,9 @@ refs/spidepth/checkpoints/*.pth
 pseudo_labels/output/
 cups_pseudo_labels*/
 
+# Downloaded datasets
+datasets/
+
 # Env
 .env
 *.env

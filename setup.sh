@@ -14,6 +14,7 @@
 # Tested on:
 #   - macOS (Apple Silicon M4 Pro) with MPS backend
 #   - Linux (Ubuntu 20.04) with CUDA 11.8 + GTX 1080 Ti
+#   - Linux HPC clusters (module load gcc-9.3.0 for Detectron2 build)
 # ============================================================
 
 set -euo pipefail
@@ -103,7 +104,26 @@ echo ""
 # ─── Step 3: Install Detectron2 ───
 if [ "$SKIP_DETECTRON2" = false ]; then
     echo "[3/6] Installing Detectron2 from source..."
-    pip install 'git+https://github.com/facebookresearch/detectron2.git'
+
+    # Ensure wheel + setuptools are present (needed for bdist_wheel)
+    pip install wheel setuptools --upgrade --quiet
+
+    # Check GCC version — Detectron2 C++ extensions need GCC >= 9
+    GCC_MAJOR=$(gcc -dumpversion 2>/dev/null | cut -d. -f1 || echo "0")
+    if [ "$GCC_MAJOR" -lt 9 ]; then
+        echo "  WARNING: GCC ${GCC_MAJOR} detected (need >= 9 for C++ extensions)."
+        echo "  Tip: On HPC, try 'module load gcc-9.3.0' or similar before running this script."
+        echo "  Building Detectron2 WITHOUT C++ extensions (pure Python)..."
+        # Clone, patch out C++ extensions, install
+        TMPDIR=$(mktemp -d)
+        git clone --filter=blob:none --quiet https://github.com/facebookresearch/detectron2.git "${TMPDIR}/detectron2"
+        sed -i 's/ext_modules=get_extensions(),/ext_modules=[],/' "${TMPDIR}/detectron2/setup.py"
+        pip install --no-build-isolation -e "${TMPDIR}/detectron2"
+    else
+        echo "  GCC ${GCC_MAJOR} detected — building with C++ extensions..."
+        FORCE_CUDA=0 pip install --no-build-isolation 'git+https://github.com/facebookresearch/detectron2.git'
+    fi
+
     python -c "import detectron2; print(f'  Detectron2 {detectron2.__version__}')"
 else
     echo "[3/6] Skipping Detectron2 installation."
@@ -152,17 +172,11 @@ fi
 
 # Verify local packages
 cd "${REPO_DIR}"
+export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 if python -c "import cups" 2>/dev/null; then
     echo "  [OK] cups (local)"
 else
     echo "  [FAIL] cups (local) — make sure PYTHONPATH includes ${REPO_DIR}"
-    ERRORS=$((ERRORS + 1))
-fi
-
-if python -c "import sys; sys.path.insert(0, 'pseudo_labels'); from refine_net import CSCMRefineNet" 2>/dev/null; then
-    echo "  [OK] refine_net (local)"
-else
-    echo "  [FAIL] refine_net (local)"
     ERRORS=$((ERRORS + 1))
 fi
 
@@ -189,23 +203,15 @@ echo ""
 echo "  # Set PYTHONPATH (required for all commands):"
 echo "  export PYTHONPATH=\"${REPO_DIR}:\${PYTHONPATH:-}\""
 echo ""
-echo "  # Stage 1: Generate pseudo-labels"
-echo "  python pseudo_labels/generate_semantic_pseudolabels_cause.py \\"
+echo "  # Stage 1: Generate pseudo-labels (k=60 overclustering)"
+echo "  python pseudo_labels/generate_overclustered_semantics.py \\"
 echo "      --cityscapes_root /path/to/cityscapes \\"
-echo "      --checkpoint_dir /path/to/cause/checkpoints"
+echo "      --k 60 --raw_clusters --skip_crf \\"
+echo "      --checkpoint_dir /path/to/cause/weights"
 echo ""
-echo "  # Stage 2: Train"
-echo "  python train.py \\"
-echo "      --experiment_config_file configs/train_cityscapes_resnet50_k50.yaml \\"
-echo "      --data_root /path/to/cityscapes/ \\"
-echo "      --pseudo_root /path/to/cityscapes/cups_pseudo_labels_k50/ \\"
-echo "      --batch_size 2 --num_gpus 2 \\"
+echo "  # Stage 2+3: Train (Stage-2 supervised + Stage-3 self-training)"
+echo "  python train_hybrid.py \\"
+echo "      --experiment_config_file configs/train_cityscapes_vitb_v5.yaml \\"
 echo "      --disable_wandb"
-echo ""
-echo "  # Parameter sweep"
-echo "  python pseudo_labels/sweep_k50_spidepth.py \\"
-echo "      --cityscapes_root /path/to/cityscapes \\"
-echo "      --grad_thresholds 0.2 0.3 0.5 \\"
-echo "      --min_areas 500 700 1000"
 echo ""
 echo "============================================================"

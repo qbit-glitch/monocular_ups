@@ -10,13 +10,14 @@ CUPS expects (flat dir):
   - {stem}_leftImg8bit_instance.png (uint16, instance IDs)
   - {stem}_leftImg8bit.pt (distribution stats)
 
-Two modes:
+Three modes:
   - Default (27-class): loads NPZ instance masks, maps 19-class trainIDs to 27-class CAUSE IDs
-  - Raw cluster mode (--cc_instances --num_classes 50): generates CC instances from thing clusters
+  - CC instances (--cc_instances --num_classes 50): generates CC instances from thing clusters
+  - Depth-guided (--depth_instances --num_classes 80): depth-gradient splitting on thing clusters
 
 Usage:
     # Original 27-class with NPZ instances:
-    python mbps_pytorch/convert_to_cups_format.py \
+    python pseudo_labels/convert_to_cups_format.py \
         --cityscapes_root /path/to/cityscapes \
         --semantic_subdir pseudo_semantic_cause_crf \
         --instance_subdir sweep_instances/gt0.10_ma500 \
@@ -24,13 +25,24 @@ Usage:
         --split train
 
     # Raw k=50 overclusters with CC instances:
-    python mbps_pytorch/convert_to_cups_format.py \
+    python pseudo_labels/convert_to_cups_format.py \
         --cityscapes_root /path/to/cityscapes \
         --semantic_subdir pseudo_semantic_raw_k50 \
         --output_subdir cups_pseudo_labels_k50 \
         --split train \
         --num_classes 50 --cc_instances \
         --centroids_path /path/to/pseudo_semantic_raw_k50/kmeans_centroids.npz
+
+    # Raw k=80 overclusters with depth-guided instances (gt=0.20, ma=1000):
+    python pseudo_labels/convert_to_cups_format.py \
+        --cityscapes_root /path/to/cityscapes \
+        --semantic_subdir pseudo_semantic_raw_k80 \
+        --output_subdir cups_pseudo_labels_k80 \
+        --split train \
+        --num_classes 80 --depth_instances \
+        --centroids_path /path/to/pseudo_semantic_raw_k80/kmeans_centroids.npz \
+        --depth_subdir depth_spidepth \
+        --grad_threshold 0.20 --min_instance_area 1000
 """
 
 import argparse
@@ -44,6 +56,7 @@ import numpy as np
 import torch
 from PIL import Image
 from scipy import ndimage
+from scipy.ndimage import gaussian_filter, sobel
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -106,6 +119,79 @@ def build_instance_map_cc(semantic, thing_ids, min_area=100):
             if comp_mask.sum() >= min_area:
                 instance_map[comp_mask] = instance_id
                 instance_id += 1
+
+    return instance_map
+
+
+def build_instance_map_depth_guided(semantic, depth, thing_ids, min_area=1000,
+                                     grad_threshold=0.20, dilation_iters=3,
+                                     depth_blur_sigma=1.0):
+    """Build instance map using depth-gradient splitting on thing-cluster regions.
+
+    Applies Sobel filtering to the depth map to detect depth discontinuities,
+    then splits thing-class regions at these edges via connected components.
+
+    Args:
+        semantic: (H, W) uint8 array with cluster IDs (0 to k-1)
+        depth: (H, W) float array with depth values
+        thing_ids: set of cluster IDs considered 'things'
+        min_area: minimum pixel area for an instance
+        grad_threshold: depth gradient magnitude threshold for edge detection
+        dilation_iters: morphological dilation iterations for boundary reclamation
+        depth_blur_sigma: Gaussian blur sigma applied to depth before Sobel
+
+    Returns:
+        instance_map: (H, W) uint16 array with instance IDs (0=background)
+    """
+    H, W = semantic.shape
+    instance_map = np.zeros((H, W), dtype=np.uint16)
+    instance_id = 1
+
+    # Compute depth edges
+    if depth_blur_sigma > 0:
+        depth_smooth = gaussian_filter(depth.astype(np.float64), sigma=depth_blur_sigma)
+    else:
+        depth_smooth = depth.astype(np.float64)
+    gx = sobel(depth_smooth, axis=1)
+    gy = sobel(depth_smooth, axis=0)
+    grad_mag = np.sqrt(gx ** 2 + gy ** 2)
+    depth_edges = grad_mag > grad_threshold
+
+    assigned = np.zeros((H, W), dtype=bool)
+
+    for cluster_id in sorted(thing_ids):
+        cls_mask = semantic == cluster_id
+        if cls_mask.sum() < min_area:
+            continue
+
+        # Remove depth edges from class mask, then find connected components
+        split_mask = cls_mask & ~depth_edges
+        labeled, n_cc = ndimage.label(split_mask)
+
+        # Collect and sort by area descending
+        cc_list = []
+        for cc_id in range(1, n_cc + 1):
+            cc_mask = labeled == cc_id
+            area = int(cc_mask.sum())
+            if area >= min_area:
+                cc_list.append((cc_mask, area))
+        cc_list.sort(key=lambda x: -x[1])
+
+        for cc_mask, area in cc_list:
+            # Reclaim boundary pixels via dilation
+            if dilation_iters > 0:
+                dilated = ndimage.binary_dilation(cc_mask, iterations=dilation_iters)
+                reclaimed = dilated & cls_mask & ~assigned
+                final_mask = cc_mask | reclaimed
+            else:
+                final_mask = cc_mask
+
+            if final_mask.sum() < min_area:
+                continue
+
+            assigned |= final_mask
+            instance_map[final_mask] = instance_id
+            instance_id += 1
 
     return instance_map
 
@@ -235,25 +321,46 @@ def main():
                              "(required when --cc_instances is set)")
     parser.add_argument("--min_instance_area", type=int, default=100,
                         help="Minimum pixel area for a CC instance (default: 100)")
+    parser.add_argument("--depth_instances", action="store_true",
+                        help="Generate instances using depth-gradient splitting on thing-cluster "
+                             "regions (requires --centroids_path and --depth_subdir)")
+    parser.add_argument("--depth_subdir", type=str, default="depth_spidepth",
+                        help="Subdirectory under cityscapes_root with depth .npy files")
+    parser.add_argument("--grad_threshold", type=float, default=0.20,
+                        help="Depth gradient threshold for edge detection (default: 0.20)")
+    parser.add_argument("--depth_blur_sigma", type=float, default=1.0,
+                        help="Gaussian blur sigma for depth smoothing (default: 1.0)")
+    parser.add_argument("--dilation_iters", type=int, default=3,
+                        help="Morphological dilation iterations for boundary reclamation (default: 3)")
 
     args = parser.parse_args()
 
+    if args.cc_instances and args.depth_instances:
+        parser.error("--cc_instances and --depth_instances are mutually exclusive")
     if args.cc_instances and args.centroids_path is None:
         parser.error("--centroids_path is required when --cc_instances is set")
+    if args.depth_instances and args.centroids_path is None:
+        parser.error("--centroids_path is required when --depth_instances is set")
 
     cs_root = Path(args.cityscapes_root)
     semantic_dir = cs_root / args.semantic_subdir
-    instance_dir = cs_root / args.instance_subdir if not args.cc_instances else None
+    use_cc = args.cc_instances
+    use_depth = args.depth_instances
+    instance_dir = cs_root / args.instance_subdir if not (use_cc or use_depth) else None
+    depth_dir = cs_root / args.depth_subdir if use_depth else None
     output_dir = cs_root / args.output_subdir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     num_classes = args.num_classes
-    use_cc = args.cc_instances
 
     # Determine thing IDs
-    if use_cc:
+    if use_cc or use_depth:
         thing_ids = determine_thing_cluster_ids(args.centroids_path)
-        logger.info(f"Mode: CC instances on {num_classes} raw clusters")
+        mode = "depth-guided" if use_depth else "CC"
+        logger.info(f"Mode: {mode} instances on {num_classes} raw clusters")
+        if use_depth:
+            logger.info(f"  grad_threshold={args.grad_threshold}, min_area={args.min_instance_area}, "
+                        f"dilation={args.dilation_iters}, blur_sigma={args.depth_blur_sigma}")
     elif args.stuff_things:
         thing_ids = load_stuff_things_json(args.stuff_things)
         logger.info(f"Thing IDs (27-class): {sorted(thing_ids)}")
@@ -303,7 +410,40 @@ def main():
         if trainid_lut is not None:
             semantic = trainid_lut[semantic]
 
-        if use_cc:
+        if use_depth:
+            # Depth-guided instances from raw cluster semantic map + depth
+            depth_path = depth_dir / args.split / city / f"{stem}.npy"
+            if not depth_path.exists():
+                depth_path = depth_dir / args.split / city / f"{stem}_leftImg8bit.npy"
+            if depth_path.exists():
+                depth = np.load(str(depth_path))
+                # Resize depth to match semantic resolution
+                if depth.shape != semantic.shape:
+                    depth = np.array(
+                        Image.fromarray(depth).resize(
+                            (semantic.shape[1], semantic.shape[0]), Image.BILINEAR
+                        )
+                    )
+                # Normalize depth to [0, 1]
+                d_min, d_max = depth.min(), depth.max()
+                if d_max > d_min:
+                    depth = (depth - d_min) / (d_max - d_min)
+                instance_map = build_instance_map_depth_guided(
+                    semantic, depth, thing_ids,
+                    min_area=args.min_instance_area,
+                    grad_threshold=args.grad_threshold,
+                    dilation_iters=args.dilation_iters,
+                    depth_blur_sigma=args.depth_blur_sigma,
+                )
+            else:
+                # Fallback to CC if no depth map
+                instance_map = build_instance_map_cc(
+                    semantic, thing_ids, min_area=args.min_instance_area
+                )
+                skipped += 1
+            n_instances = int(instance_map.max())
+            total_thing_instances += n_instances
+        elif use_cc:
             # CC instances from raw cluster semantic map
             instance_map = build_instance_map_cc(
                 semantic, thing_ids, min_area=args.min_instance_area

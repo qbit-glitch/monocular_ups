@@ -2,12 +2,11 @@
 # Unsupervised Panoptic Segmentation — Requirements
 # ============================================================
 # Install: pip install -r requirements.txt
-# Detectron2 must be installed separately (see setup.sh)
+# NOTE: torch, torchvision, and detectron2 are installed separately
+#       by setup.sh (with correct CUDA index URLs). Do NOT list them here.
 # ============================================================
 
-# ─── Core Deep Learning ───
-torch>=2.0.0
-torchvision>=0.15.0
+# ─── Training Framework ───
 pytorch-lightning>=2.0.0
 
 # ─── Detectron2 dependencies (detectron2 itself installed from source) ───
@@ -39,7 +38,7 @@ pydensecrf
 # ─── Cityscapes tools ───
 cityscapesscripts
 
-# ─── DINOv3 feature extraction (optional, only for DINOSAUR pipeline) ───
+# ─── DINOv2 feature extraction ───
 transformers>=4.30.0
 
 # ─── Misc ───
