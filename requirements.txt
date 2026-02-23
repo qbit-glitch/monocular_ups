@@ -1,0 +1,38 @@
+# Core
+torch>=2.0.0
+torchvision>=0.15.0
+pytorch-lightning>=2.0.0
+
+# Detectron2 (install from source for your CUDA version)
+# python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
+
+# Vision & ML
+timm==0.9.12
+kornia>=0.6.11
+scikit-learn==1.3.2
+scikit-image>=0.22.0
+scipy>=1.0.0
+opencv-python
+Pillow>=9.2.0
+einops
+
+# Metrics & Evaluation
+torchmetrics==1.3.1
+pycocotools
+faster-coco-eval
+
+# Config & Logging
+yacs
+wandb>=0.15.4
+rtpt==0.0.4
+
+# CRF post-processing
+pydensecrf
+
+# Cityscapes
+cityscapesscripts
+
+# Misc
+numpy
+tqdm
+matplotlib
