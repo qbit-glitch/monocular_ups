@@ -19,7 +19,9 @@ Thumbs.db
 # Training artifacts
 experiments/
 logs/
-checkpoints/
+checkpoints/*.pth
+checkpoints/*.npy
+checkpoints/*.pt
 wandb/
 
 # Data (too large for git)

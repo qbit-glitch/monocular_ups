@@ -66,6 +66,16 @@ try:
 except ImportError:
     HAS_CRF = False
 
+# ─── Checkpoint URLs ───
+
+DINOV2_VITB14_URL = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth"
+
+# CAUSE weights are on Google Drive (no direct URLs).
+# Seg Head Parameters: https://drive.google.com/drive/folders/1ByLMYly-lLAa4vBQZ8Sv8nLSWBLPbev-
+# Concept ClusterBook: https://drive.google.com/drive/folders/14bq-B4Xj4V3Usl2b2SfobCOaap4lzIXl
+# Navigate to: cityscapes/dinov2_vit_base_14/2048/ for segment_tr.pth
+#              cityscapes/modularity/dinov2_vit_base_14/2048/ for modular.npy
+
 # ─── Constants ───
 
 _CS_ID_TO_TRAIN = {
@@ -109,13 +119,68 @@ def get_cityscapes_images(cityscapes_root, split):
     return images
 
 
+def ensure_checkpoints(checkpoint_dir):
+    """Ensure all required checkpoints exist, auto-downloading DINOv2 if needed.
+
+    Expected flat layout in checkpoint_dir:
+        dinov2_vitb14_pretrain.pth   (DINOv2 ViT-B/14 backbone)
+        segment_tr.pth               (CAUSE Segment_TR head)
+        modular.npy                  (CAUSE modularity codebook)
+    """
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    backbone_path = os.path.join(checkpoint_dir, "dinov2_vitb14_pretrain.pth")
+    seg_path = os.path.join(checkpoint_dir, "segment_tr.pth")
+    mod_path = os.path.join(checkpoint_dir, "modular.npy")
+
+    # Auto-download DINOv2 backbone from Facebook
+    if not os.path.exists(backbone_path):
+        print(f"Downloading DINOv2 ViT-B/14 backbone to {backbone_path} ...")
+        torch.hub.download_url_to_file(DINOV2_VITB14_URL, backbone_path)
+        print(f"  Done ({os.path.getsize(backbone_path) / 1e6:.1f} MB)")
+
+    # Check CAUSE-specific weights (manual download required)
+    missing = []
+    if not os.path.exists(seg_path):
+        missing.append(("segment_tr.pth", "Seg Head Parameters"))
+    if not os.path.exists(mod_path):
+        missing.append(("modular.npy", "Concept ClusterBook"))
+
+    if missing:
+        print("\n" + "=" * 70)
+        print("MISSING CAUSE CHECKPOINTS")
+        print("=" * 70)
+        print(f"The following files are missing from {checkpoint_dir}/:\n")
+        for fname, category in missing:
+            print(f"  - {fname}  ({category})")
+        print(f"\nDownload from the official CAUSE Google Drive:")
+        print(f"  Seg Head Parameters: https://drive.google.com/drive/folders/1ByLMYly-lLAa4vBQZ8Sv8nLSWBLPbev-")
+        print(f"  Concept ClusterBook: https://drive.google.com/drive/folders/14bq-B4Xj4V3Usl2b2SfobCOaap4lzIXl")
+        print(f"\nNavigate to: cityscapes → dinov2_vit_base_14 → 2048/")
+        print(f"Download segment_tr.pth and modular.npy, then place them in:")
+        print(f"  {checkpoint_dir}/")
+        print("=" * 70 + "\n")
+        raise FileNotFoundError(
+            f"Missing CAUSE checkpoints: {', '.join(f for f, _ in missing)}. "
+            f"See instructions above."
+        )
+
+    print(f"All checkpoints found in {checkpoint_dir}/")
+    return backbone_path, seg_path, mod_path
+
+
 def load_cause_models(checkpoint_dir, device):
+    """Load CAUSE models from a flat checkpoint directory."""
+    backbone_path, seg_path, mod_path = ensure_checkpoints(checkpoint_dir)
+
     cause_args = SimpleNamespace(
         dim=768, reduced_dim=90, projection_dim=2048,
         num_codebook=2048, n_classes=27,
         num_queries=23 * 23, crop_size=322, patch_size=14,
     )
-    backbone_path = os.path.join(checkpoint_dir, "checkpoint", "dinov2_vit_base_14.pth")
+
+    # 1. Load DINOv2 ViT-B/14 backbone
+    print(f"Loading DINOv2 ViT-B/14 from {backbone_path}")
     net = dinov2_vit_base_14()
     state = torch.load(backbone_path, map_location="cpu", weights_only=True)
     net.load_state_dict(state, strict=False)
@@ -123,19 +188,20 @@ def load_cause_models(checkpoint_dir, device):
     for p in net.parameters():
         p.requires_grad = False
 
-    seg_path = os.path.join(checkpoint_dir, "CAUSE", "cityscapes", "dinov2_vit_base_14", "2048", "segment_tr.pth")
+    # 2. Load Segment_TR head
+    print(f"Loading Segment_TR from {seg_path}")
     segment = Segment_TR(cause_args).to(device)
     seg_state = torch.load(seg_path, map_location="cpu", weights_only=True)
     segment.load_state_dict(seg_state, strict=False)
     segment.eval()
 
-    # Load codebook for Segment_TR
-    mod_path = os.path.join(checkpoint_dir, "CAUSE", "cityscapes", "modularity",
-                            "dinov2_vit_base_14", "2048", "modular.npy")
+    # 3. Load modularity codebook
+    print(f"Loading modularity codebook from {mod_path}")
     cb = torch.from_numpy(np.load(mod_path)).to(device)
     segment.head.codebook = cb
     segment.head_ema.codebook = cb
 
+    print(f"All models loaded. Backbone: {sum(p.numel() for p in net.parameters())/1e6:.1f}M params")
     return net, segment, cause_args
 
 
@@ -409,7 +475,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--cityscapes_root", type=str, required=True)
     parser.add_argument("--split", type=str, default="val")
-    parser.add_argument("--checkpoint_dir", type=str, default=None)
+    parser.add_argument("--checkpoint_dir", type=str, default=None,
+                        help="Flat dir with dinov2_vitb14_pretrain.pth, segment_tr.pth, modular.npy (default: checkpoints/)")
     parser.add_argument("--k", type=int, default=300)
     parser.add_argument("--output_subdir", type=str, default=None)
     parser.add_argument("--skip_crf", action="store_true")
@@ -429,7 +496,7 @@ def main():
             args.output_subdir = f"pseudo_semantic_overclustered_k{args.k}"
 
     if args.checkpoint_dir is None:
-        args.checkpoint_dir = str(Path(__file__).resolve().parent.parent / "refs" / "cause")
+        args.checkpoint_dir = str(Path(__file__).resolve().parent.parent / "checkpoints")
 
     if args.device == "auto":
         if torch.cuda.is_available():
