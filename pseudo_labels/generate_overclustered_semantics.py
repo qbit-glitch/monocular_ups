@@ -15,23 +15,21 @@ Pipeline:
 3. For each image: sliding window → 90-dim features → k-means assignment → [mapping] → CRF → PNG
 
 Usage:
-    # Mapped 19-class output (original behavior):
-    python mbps_pytorch/generate_overclustered_semantics.py \
+    # Mapped 19-class output (for evaluation):
+    python pseudo_labels/generate_overclustered_semantics.py \
         --cityscapes_root /path/to/cityscapes \
         --split val --k 300
 
-    # Raw cluster output for CUPS training:
-    python mbps_pytorch/generate_overclustered_semantics.py \
+    # Raw k=80 cluster output for CUPS Stage-2 training:
+    python pseudo_labels/generate_overclustered_semantics.py \
         --cityscapes_root /path/to/cityscapes \
-        --split val --k 50 --raw_clusters \
-        --output_subdir pseudo_semantic_raw_k50
+        --split val --k 80 --raw_clusters
 
     # Reuse pre-fitted centroids for train split:
-    python mbps_pytorch/generate_overclustered_semantics.py \
+    python pseudo_labels/generate_overclustered_semantics.py \
         --cityscapes_root /path/to/cityscapes \
-        --split train --k 50 --raw_clusters \
-        --output_subdir pseudo_semantic_raw_k50 \
-        --load_centroids /path/to/pseudo_semantic_raw_k50/kmeans_centroids.npz
+        --split train --k 80 --raw_clusters \
+        --load_centroids /path/to/pseudo_semantic_raw_k80/kmeans_centroids.npz
 """
 
 import argparse
@@ -480,15 +478,26 @@ def main():
 
     print(f"\nDone! Pseudo-labels saved to {output_dir}/{args.split}/")
     if args.raw_clusters:
-        print(f"\nConvert to CUPS format with:")
-        print(f"  python mbps_pytorch/convert_to_cups_format.py \\")
+        centroids_file = f"{output_dir}/kmeans_centroids.npz"
+        print(f"\nConvert to CUPS format (depth-guided instances, recommended):")
+        print(f"  python pseudo_labels/convert_to_cups_format.py \\")
+        print(f"    --cityscapes_root {args.cityscapes_root} \\")
+        print(f"    --semantic_subdir {args.output_subdir} --split {args.split} \\")
+        print(f"    --num_classes {args.k} --depth_instances \\")
+        print(f"    --centroids_path {centroids_file} \\")
+        print(f"    --depth_subdir depth_spidepth \\")
+        print(f"    --grad_threshold 0.20 --min_instance_area 1000 \\")
+        print(f"    --output_subdir cups_pseudo_labels_k{args.k}")
+        print(f"\n  Or CC-only instances (simpler, no depth maps needed):")
+        print(f"  python pseudo_labels/convert_to_cups_format.py \\")
         print(f"    --cityscapes_root {args.cityscapes_root} \\")
         print(f"    --semantic_subdir {args.output_subdir} --split {args.split} \\")
         print(f"    --num_classes {args.k} --cc_instances \\")
-        print(f"    --centroids_path {output_dir}/kmeans_centroids.npz")
+        print(f"    --centroids_path {centroids_file} \\")
+        print(f"    --output_subdir cups_pseudo_labels_k{args.k}")
     else:
         print(f"\nEvaluate with:")
-        print(f"  python mbps_pytorch/evaluate_cascade_pseudolabels.py \\")
+        print(f"  python pseudo_labels/evaluation/evaluate_pseudolabels.py \\")
         print(f"    --cityscapes_root {args.cityscapes_root} \\")
         print(f"    --semantic_subdir {args.output_subdir} --split {args.split} \\")
         print(f"    --instance_subdir pseudo_instance_spidepth --thing_mode hybrid")
