@@ -41,6 +41,9 @@ cityscapesscripts
 # ─── DINOv2 feature extraction ───
 transformers>=4.30.0
 
+# ─── Checkpoint downloading ───
+gdown>=4.7.1
+
 # ─── Misc ───
 numpy>=1.21.0
 tqdm

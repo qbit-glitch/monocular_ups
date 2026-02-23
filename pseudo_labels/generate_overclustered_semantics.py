@@ -70,11 +70,14 @@ except ImportError:
 
 DINOV2_VITB14_URL = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitb14/dinov2_vitb14_pretrain.pth"
 
-# CAUSE weights are on Google Drive (no direct URLs).
-# Seg Head Parameters: https://drive.google.com/drive/folders/1ByLMYly-lLAa4vBQZ8Sv8nLSWBLPbev-
-# Concept ClusterBook: https://drive.google.com/drive/folders/14bq-B4Xj4V3Usl2b2SfobCOaap4lzIXl
-# Navigate to: cityscapes/dinov2_vit_base_14/2048/ for segment_tr.pth
-#              cityscapes/modularity/dinov2_vit_base_14/2048/ for modular.npy
+# CAUSE weights on Google Drive (auto-downloaded via gdown)
+# Seg Head Parameters folder: https://drive.google.com/drive/folders/1ByLMYly-lLAa4vBQZ8Sv8nLSWBLPbev-
+# Concept ClusterBook folder: https://drive.google.com/drive/folders/14bq-B4Xj4V3Usl2b2SfobCOaap4lzIXl
+CAUSE_GDRIVE_IDS = {
+    "segment_tr.pth": "1NgXCO_rd_wagMYOxadbLsB_24xiQ3PkX",   # ~73.6 MB
+    "modular.npy": "1toqM7RYViIJhWmxyWiyQS4X-xJgIFwCd",      # ~6.3 MB
+    "cluster_tr.pth": "12DQmueN8pHx-kKasGWbJS-NmjdVnwb0Y",   # ~6.3 MB
+}
 
 # ─── Constants ───
 
@@ -119,8 +122,27 @@ def get_cityscapes_images(cityscapes_root, split):
     return images
 
 
+def _download_from_gdrive(file_id, output_path):
+    """Download a file from Google Drive using gdown."""
+    try:
+        import gdown
+    except ImportError:
+        raise ImportError(
+            f"gdown is required to auto-download CAUSE checkpoints.\n"
+            f"Install with: pip install gdown\n"
+            f"Or manually download from Google Drive and place in {os.path.dirname(output_path)}/"
+        )
+    url = f"https://drive.google.com/uc?id={file_id}"
+    print(f"  Downloading {os.path.basename(output_path)} from Google Drive ...")
+    gdown.download(url, output_path, quiet=False)
+    if os.path.exists(output_path):
+        print(f"  Done ({os.path.getsize(output_path) / 1e6:.1f} MB)")
+    else:
+        raise RuntimeError(f"Failed to download {output_path}")
+
+
 def ensure_checkpoints(checkpoint_dir):
-    """Ensure all required checkpoints exist, auto-downloading DINOv2 if needed.
+    """Ensure all required checkpoints exist, auto-downloading if needed.
 
     Expected flat layout in checkpoint_dir:
         dinov2_vitb14_pretrain.pth   (DINOv2 ViT-B/14 backbone)
@@ -139,31 +161,10 @@ def ensure_checkpoints(checkpoint_dir):
         torch.hub.download_url_to_file(DINOV2_VITB14_URL, backbone_path)
         print(f"  Done ({os.path.getsize(backbone_path) / 1e6:.1f} MB)")
 
-    # Check CAUSE-specific weights (manual download required)
-    missing = []
-    if not os.path.exists(seg_path):
-        missing.append(("segment_tr.pth", "Seg Head Parameters"))
-    if not os.path.exists(mod_path):
-        missing.append(("modular.npy", "Concept ClusterBook"))
-
-    if missing:
-        print("\n" + "=" * 70)
-        print("MISSING CAUSE CHECKPOINTS")
-        print("=" * 70)
-        print(f"The following files are missing from {checkpoint_dir}/:\n")
-        for fname, category in missing:
-            print(f"  - {fname}  ({category})")
-        print(f"\nDownload from the official CAUSE Google Drive:")
-        print(f"  Seg Head Parameters: https://drive.google.com/drive/folders/1ByLMYly-lLAa4vBQZ8Sv8nLSWBLPbev-")
-        print(f"  Concept ClusterBook: https://drive.google.com/drive/folders/14bq-B4Xj4V3Usl2b2SfobCOaap4lzIXl")
-        print(f"\nNavigate to: cityscapes → dinov2_vit_base_14 → 2048/")
-        print(f"Download segment_tr.pth and modular.npy, then place them in:")
-        print(f"  {checkpoint_dir}/")
-        print("=" * 70 + "\n")
-        raise FileNotFoundError(
-            f"Missing CAUSE checkpoints: {', '.join(f for f, _ in missing)}. "
-            f"See instructions above."
-        )
+    # Auto-download CAUSE weights from Google Drive
+    for fname, fpath in [("segment_tr.pth", seg_path), ("modular.npy", mod_path)]:
+        if not os.path.exists(fpath):
+            _download_from_gdrive(CAUSE_GDRIVE_IDS[fname], fpath)
 
     print(f"All checkpoints found in {checkpoint_dir}/")
     return backbone_path, seg_path, mod_path
