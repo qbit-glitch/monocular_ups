@@ -63,7 +63,11 @@ Stage 3: Self-Training with TTA Teacher
 │   │   ├── model.py            # Panoptic Cascade Mask R-CNN (ResNet-50)
 │   │   ├── model_vitb.py       # DINOv2 ViT-B/14 variant
 │   │   ├── backbone_dinov2_vit.py  # DINOv2 Detectron2 backbone wrapper
-│   │   └── modeling/           # Custom Detectron2 heads
+│   │   ├── modeling/           # Custom Detectron2 heads
+│   │   ├── Base-RCNN-FPN.yaml            # Detectron2 base config
+│   │   ├── Base-Panoptic-FPN.yaml        # Panoptic FPN base config
+│   │   ├── Cascade-Mask-R-CNN.yaml       # Instance-only config
+│   │   └── Panoptic-Cascade-Mask-R-CNN.yaml  # Full panoptic config
 │   ├── data/
 │   │   ├── cityscapes.py       # Cityscapes dataset loaders
 │   │   ├── pseudo_label_dataset.py  # Pseudo-label dataset (with spatial alignment fix)
@@ -73,28 +77,44 @@ Stage 3: Self-Training with TTA Teacher
 │
 ├── pseudo_labels/              # Stage-1: Pseudo-label generation
 │   ├── generate_semantic_pseudolabels_cause.py   # CAUSE-TR 27-class semantics
-│   ├── generate_overclustered_semantics.py       # K-means overclustering (k=300)
+│   ├── generate_overclustered_semantics.py       # K-means overclustering (k=50/300)
 │   ├── overclustering_cause.py                   # Overclustering analysis
-│   ├── extract_dinov2_features.py                # DINOv2 feature extraction
+│   ├── extract_dinov2_features.py                # DINOv2 ViT-B/14 feature extraction
+│   ├── extract_dinov3_features.py                # DINOv3 feature extraction (for DINOSAUR)
 │   ├── generate_depth_spidepth.py                # SPIdepth monocular depth
 │   ├── generate_depth_guided_instances.py        # Depth-gradient instances
+│   ├── generate_dinosaur_instances.py            # DINOSAUR slot attention instances
+│   ├── train_dinosaur.py                         # DINOSAUR slot attention training
 │   ├── generate_panoptic_pseudolabels.py         # Combine semantic + instances
 │   ├── convert_to_cups_format.py                 # Convert to CUPS training format
 │   ├── classify_stuff_things.py                  # Stuff/things classification
 │   ├── remap_cause27_to_trainid.py               # 27-class → 19-class remapping
+│   ├── sweep_k50_spidepth.py                     # Parameter sweep for k=50 + depth splitting
+│   ├── refine_net.py                             # CSCMRefineNet model (DINOv2+depth → refined semantics)
+│   ├── joint_refine_net.py                       # JointRefineNet (semantic + boundary + embedding)
+│   ├── train_refine_net.py                       # CSCMRefineNet training
+│   ├── train_joint_refine_net.py                 # JointRefineNet training
+│   ├── generate_refined_semantics.py             # RefineNet inference
+│   ├── losses/
+│   │   └── instance_embedding_loss.py            # Discriminative loss
 │   └── evaluation/
 │       ├── evaluate_pseudolabels.py              # Full panoptic evaluation
 │       ├── evaluate_semantic_pseudolabels.py     # Semantic-only evaluation
 │       ├── evaluate_cascade_pseudolabels.py      # CUPS-format evaluation
+│       ├── evaluate_k50_pseudolabels.py          # k=50 overcluster evaluation
 │       └── diagnose_cups_pseudolabels.py         # Diagnostic validation
 │
 ├── configs/                    # Training configurations
 │   ├── train_cityscapes.yaml               # ResNet-50 baseline
 │   ├── train_cityscapes_resnet50_v4.yaml   # ResNet-50 (fixed alignment)
+│   ├── train_cityscapes_resnet50_k50.yaml  # ResNet-50 (k=50 raw overclusters)
 │   ├── train_cityscapes_vitb.yaml          # ViT-B/14 baseline
 │   ├── train_cityscapes_vitb_v3.yaml       # ViT-B/14 (overclustered)
 │   ├── train_cityscapes_vitb_v4.yaml       # ViT-B/14 (fixed alignment)
 │   ├── train_cityscapes_vitb_v5.yaml       # ViT-B/14 (self-training + grad accum)
+│   ├── train_self_cityscapes.yaml          # Stage-3 self-training config
+│   ├── train_self_cityscapes_vitb_local.yaml  # Stage-3 ViT-B local config
+│   ├── train_hybrid_local.yaml             # Stage-2+3 hybrid local config
 │   └── val_cityscapes.yaml                 # Validation config
 │
 ├── scripts/                    # Launch scripts
@@ -103,7 +123,16 @@ Stage 3: Self-Training with TTA Teacher
 │   ├── run_vitb_v4_stage2.sh
 │   ├── run_vitb_v5_stage2.sh
 │   ├── run_resnet50_v4_stage2.sh
+│   ├── run_resnet50_k50_stage2.sh          # k=50 raw overclusters Stage-2
 │   └── cups_inference_val.py               # Inference + evaluation
+│
+├── refs/                       # Reference codebases (source only, checkpoints gitignored)
+│   ├── cause/                  # CAUSE (Pattern Recognition 2024)
+│   │   ├── models/             # DINOv2 ViT backbone
+│   │   └── modules/            # Segment TR decoder + modularity codebook
+│   └── spidepth/               # SPIdepth self-supervised monocular depth
+│       ├── SQLdepth.py, layers.py
+│       └── networks/           # Encoder-decoder architecture (12 files)
 │
 ├── reports/                    # Technical reports
 │   ├── stage_1_report.md                   # Stage-1 pseudo-label pipeline
@@ -111,7 +140,8 @@ Stage 3: Self-Training with TTA Teacher
 │   ├── overclustered_spidepth_sweep.md     # Instance method comparison
 │   └── stage2_spatial_alignment_fix.md     # Spatial misalignment bug fix
 │
-└── requirements.txt
+├── requirements.txt
+└── requirements_cups.txt
 ```
 
 ## Quick Start
@@ -123,9 +153,10 @@ pip install -r requirements.txt
 pip install 'git+https://github.com/facebookresearch/detectron2.git'
 ```
 
-External dependencies (not included):
-- [CAUSE-TR](https://github.com/xxx/cause) — semantic pseudo-label generation
-- [SPIdepth](https://github.com/xxx/spidepth) — monocular depth estimation
+Download model checkpoints (not tracked by git):
+- **CAUSE-TR**: Place in `refs/cause/CAUSE/` (DINOv2 ViT-B/14 + TR decoder weights)
+- **SPIdepth**: Place in `refs/spidepth/checkpoints/` (monocular depth weights)
+- **DINO ResNet-50**: Place in `cups/model/backbone_checkpoints/dino_RN50_full_pretrain_d2_format.pkl`
 - Cityscapes dataset (register at https://www.cityscapes-dataset.com/)
 
 ### Stage 1: Generate Pseudo-Labels
@@ -158,6 +189,51 @@ python pseudo_labels/convert_to_cups_format.py \
     --trainid_input
 ```
 
+#### Alternative: DINOSAUR Slot Attention Instances
+
+```bash
+# 1. Extract DINOv3 features (required for DINOSAUR)
+python pseudo_labels/extract_dinov3_features.py \
+    --cityscapes_root /path/to/cityscapes --split train
+
+# 2. Train DINOSAUR slot attention model
+python pseudo_labels/train_dinosaur.py \
+    --cityscapes_root /path/to/cityscapes --num_slots 30
+
+# 3. Generate DINOSAUR instance masks
+python pseudo_labels/generate_dinosaur_instances.py \
+    --cityscapes_root /path/to/cityscapes --checkpoint /path/to/dinosaur.pth
+```
+
+#### Alternative: Semantic Refinement with CSCMRefineNet
+
+```bash
+# Train RefineNet to refine CAUSE semantics using DINOv2 features + depth
+python pseudo_labels/train_refine_net.py \
+    --cityscapes_root /path/to/cityscapes
+
+# Generate refined semantic pseudo-labels
+python pseudo_labels/generate_refined_semantics.py \
+    --cityscapes_root /path/to/cityscapes --checkpoint /path/to/refine_net.pth
+```
+
+#### k=50 Raw Overcluster Pipeline
+
+```bash
+# Generate raw overclusters (preserving all 50 cluster IDs)
+python pseudo_labels/generate_overclustered_semantics.py \
+    --cityscapes_root /path/to/cityscapes --k 50 --raw --split train
+
+# Run parameter sweep for depth-guided splitting
+python pseudo_labels/sweep_k50_spidepth.py
+
+# Convert best config to CUPS format
+python pseudo_labels/convert_to_cups_format.py \
+    --cityscapes_root /path/to/cityscapes \
+    --output_dir /path/to/cityscapes/cups_pseudo_labels_k50/ \
+    --num_semantic_classes 50
+```
+
 ### Stage 2: Train Cascade Mask R-CNN
 
 ```bash
@@ -165,7 +241,19 @@ python pseudo_labels/convert_to_cups_format.py \
 python train.py \
     --experiment_config_file configs/train_cityscapes_vitb_v5.yaml \
     --disable_wandb
+
+# Override dataset path and training hyperparameters via CLI:
+python train.py \
+    --experiment_config_file configs/train_cityscapes_resnet50_k50.yaml \
+    --data_root /your/cityscapes/path/ \
+    --pseudo_root /your/cityscapes/path/cups_pseudo_labels_k50/ \
+    --batch_size 2 --lr 0.0001 --steps 8000 \
+    --num_gpus 2 --num_workers 4 \
+    --log_path ./experiments --run_name my_run \
+    --disable_wandb
 ```
+
+All CLI flags (`--data_root`, `--pseudo_root`, `--batch_size`, `--lr`, `--steps`, `--num_gpus`, `--num_workers`, `--log_path`, `--run_name`, `--val_every`, `--accumulate_grad`) override the YAML config values.
 
 ### Stage 2+3: Train with Self-Training
 
@@ -173,6 +261,8 @@ python train.py \
 # Hybrid training: Phase 1 (4000 steps) + Phase 2 self-training (3 rounds)
 python train_hybrid.py \
     --experiment_config_file configs/train_cityscapes_vitb_v5.yaml \
+    --data_root /your/cityscapes/path/ \
+    --batch_size 1 --num_gpus 2 \
     --disable_wandb
 ```
 
@@ -182,6 +272,27 @@ python train_hybrid.py \
 python val.py \
     --experiment_config_file configs/val_cityscapes.yaml \
     --checkpoint /path/to/checkpoint.ckpt
+```
+
+### Parameter Sweep (Custom Grid)
+
+```bash
+# Default sweep grid (31 configs + CC baseline)
+python pseudo_labels/sweep_k50_spidepth.py \
+    --cityscapes_root /your/cityscapes/path/
+
+# Custom sweep: specify your own grad_thresholds and min_areas
+python pseudo_labels/sweep_k50_spidepth.py \
+    --cityscapes_root /your/cityscapes/path/ \
+    --grad_thresholds 0.1 0.3 0.5 0.7 \
+    --min_areas 200 500 800 1000 \
+    --semantic_subdir pseudo_semantic_raw_k50 \
+    --depth_subdir depth_spidepth
+
+# Quick test with limited images
+python pseudo_labels/sweep_k50_spidepth.py \
+    --cityscapes_root /your/cityscapes/path/ \
+    --max_images 50 --no_cc_baseline
 ```
 
 ## Key Technical Contributions
@@ -197,7 +308,10 @@ python val.py \
 | Config | Backbone | Notes |
 |--------|----------|-------|
 | `train_cityscapes.yaml` | DINOv2-ResNet-50 | Original CUPS backbone |
+| `train_cityscapes_resnet50_k50.yaml` | DINOv2-ResNet-50 | k=50 raw overclusters (50 pseudo-classes) |
 | `train_cityscapes_vitb_v5.yaml` | DINOv2 ViT-B/14 (frozen) | Higher capacity, gradient accumulation |
+| `train_self_cityscapes.yaml` | ResNet-50 | Stage-3 self-training only |
+| `train_hybrid_local.yaml` | ResNet-50 | Stage-2+3 hybrid training |
 
 ## Citation
 

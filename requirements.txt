@@ -1,38 +1,48 @@
-# Core
+# ============================================================
+# Unsupervised Panoptic Segmentation — Requirements
+# ============================================================
+# Install: pip install -r requirements.txt
+# Detectron2 must be installed separately (see setup.sh)
+# ============================================================
+
+# ─── Core Deep Learning ───
 torch>=2.0.0
 torchvision>=0.15.0
 pytorch-lightning>=2.0.0
 
-# Detectron2 (install from source for your CUDA version)
-# python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
+# ─── Detectron2 dependencies (detectron2 itself installed from source) ───
+fvcore>=0.1.5
+colored>=1.4.3
 
-# Vision & ML
+# ─── Vision & ML ───
 timm==0.9.12
 kornia>=0.6.11
-scikit-learn==1.3.2
+scikit-learn>=1.3.0
 scikit-image>=0.22.0
-scipy>=1.0.0
-opencv-python
+scipy>=1.7.0
+opencv-python>=4.5.0
 Pillow>=9.2.0
-einops
 
-# Metrics & Evaluation
-torchmetrics==1.3.1
+# ─── Metrics & Evaluation ───
+torchmetrics>=1.3.0
 pycocotools
 faster-coco-eval
 
-# Config & Logging
-yacs
+# ─── Config & Logging ───
+yacs>=0.1.8
 wandb>=0.15.4
 rtpt==0.0.4
 
-# CRF post-processing
+# ─── CRF post-processing ───
 pydensecrf
 
-# Cityscapes
+# ─── Cityscapes tools ───
 cityscapesscripts
 
-# Misc
-numpy
+# ─── DINOv3 feature extraction (optional, only for DINOSAUR pipeline) ───
+transformers>=4.30.0
+
+# ─── Misc ───
+numpy>=1.21.0
 tqdm
 matplotlib

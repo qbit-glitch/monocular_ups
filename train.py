@@ -88,6 +88,18 @@ def configure() -> CfgNode:
     )
     parser.add_argument("--experiment_config_file", default=None, type=str, help="Path to experiment config file.")
     parser.add_argument("--ckpt_path", default=None, type=str, help="Path to checkpoint for resuming training.")
+    # CLI overrides for common settings (override YAML config values)
+    parser.add_argument("--data_root", default=None, type=str, help="Override DATA.ROOT and DATA.ROOT_VAL")
+    parser.add_argument("--pseudo_root", default=None, type=str, help="Override DATA.ROOT_PSEUDO")
+    parser.add_argument("--batch_size", default=None, type=int, help="Override TRAINING.BATCH_SIZE")
+    parser.add_argument("--lr", default=None, type=float, help="Override TRAINING.ADAMW.LEARNING_RATE")
+    parser.add_argument("--steps", default=None, type=int, help="Override TRAINING.STEPS")
+    parser.add_argument("--num_gpus", default=None, type=int, help="Override SYSTEM.NUM_GPUS")
+    parser.add_argument("--num_workers", default=None, type=int, help="Override SYSTEM.NUM_WORKERS")
+    parser.add_argument("--log_path", default=None, type=str, help="Override SYSTEM.LOG_PATH")
+    parser.add_argument("--run_name", default=None, type=str, help="Override SYSTEM.RUN_NAME")
+    parser.add_argument("--val_every", default=None, type=int, help="Override TRAINING.VAL_EVERY_N_STEPS")
+    parser.add_argument("--accumulate_grad", default=None, type=int, help="Override TRAINING.ACCUMULATE_GRAD_BATCHES")
     # Get arguments
     args = parser.parse_args()
     # Arguments to dict
@@ -102,10 +114,40 @@ def configure() -> CfgNode:
     experiment_config_file = args_dict.pop("experiment_config_file")
     # Get checkpoint path for resuming
     ckpt_path = args_dict.pop("ckpt_path")
+    # Extract CLI overrides before loading config
+    cli_overrides = {k: args_dict.pop(k) for k in [
+        "data_root", "pseudo_root", "batch_size", "lr", "steps",
+        "num_gpus", "num_workers", "log_path", "run_name", "val_every",
+        "accumulate_grad",
+    ]}
     # Load config
     config: CfgNode = cups.get_default_config(
         experiment_config_file=experiment_config_file, command_line_arguments=args.config
     )
+    # Apply CLI overrides on top of YAML config
+    if cli_overrides["data_root"] is not None:
+        config.DATA.ROOT = cli_overrides["data_root"]
+        config.DATA.ROOT_VAL = cli_overrides["data_root"]
+    if cli_overrides["pseudo_root"] is not None:
+        config.DATA.ROOT_PSEUDO = cli_overrides["pseudo_root"]
+    if cli_overrides["batch_size"] is not None:
+        config.TRAINING.BATCH_SIZE = cli_overrides["batch_size"]
+    if cli_overrides["lr"] is not None:
+        config.TRAINING.ADAMW.LEARNING_RATE = cli_overrides["lr"]
+    if cli_overrides["steps"] is not None:
+        config.TRAINING.STEPS = cli_overrides["steps"]
+    if cli_overrides["num_gpus"] is not None:
+        config.SYSTEM.NUM_GPUS = cli_overrides["num_gpus"]
+    if cli_overrides["num_workers"] is not None:
+        config.SYSTEM.NUM_WORKERS = cli_overrides["num_workers"]
+    if cli_overrides["log_path"] is not None:
+        config.SYSTEM.LOG_PATH = cli_overrides["log_path"]
+    if cli_overrides["run_name"] is not None:
+        config.SYSTEM.RUN_NAME = cli_overrides["run_name"]
+    if cli_overrides["val_every"] is not None:
+        config.TRAINING.VAL_EVERY_N_STEPS = cli_overrides["val_every"]
+    if cli_overrides["accumulate_grad"] is not None:
+        config.TRAINING.ACCUMULATE_GRAD_BATCHES = cli_overrides["accumulate_grad"]
     return config, ckpt_path
 
 
