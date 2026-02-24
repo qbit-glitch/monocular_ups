@@ -2,6 +2,8 @@
 # Pseudo-labels: k=100 overclustered CAUSE semantics + SPIdepth depth-guided instances
 # Best stage-1 config: gt=0.20, ma=1000 → PQ=27.10
 #
+# Effective batch size: BATCH_SIZE × NUM_GPUS × ACCUMULATE_GRAD_BATCHES = 1 × 1 × 16 = 16
+#
 # Usage:
 #   python refs/cups/train.py \
 #       --experiment_config_file refs/cups/configs/train_cityscapes_resnet50_k100.yaml \
@@ -11,6 +13,10 @@ DATA:
   SCALE: 0.625
   DATASET: "cityscapes"
   IGNORE_UNKNOWN_THING_REGIONS: False
+  # Lower threshold for k=100 overclustering: ~25 thing clusters → each gets
+  # normalized score ~1/25=0.04, well below the default 0.08. Use 0.01 to
+  # ensure all thing clusters are captured.
+  THING_STUFF_THRESHOLD: 0.01
   ROOT: "datasets/cityscapes/"
   ROOT_VAL: "datasets/cityscapes/"
   ROOT_PSEUDO: "datasets/cityscapes/cups_pseudo_labels_k100/"
@@ -42,6 +48,7 @@ TRAINING:
     LEARNING_RATE: 0.0001
     WEIGHT_DECAY: 0.00001
   VAL_EVERY_N_STEPS: 500
+  ACCUMULATE_GRAD_BATCHES: 16
   DROP_LOSS: True
   DROP_LOSS_IOU_THRESHOLD: 0.4
 VALIDATION:

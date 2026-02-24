@@ -640,13 +640,12 @@ class CityscapesPanopticValidation(Dataset):
                 self.labels.extend([os.path.join(labels_path, city, path) for path in instance_label_paths])
         # Get image paths
         for path in self.labels:
-            # Make image path
-            image_path = os.path.join(
-                *path.split("/")[:-1],
-                path.split("/")[-1].replace("_gtFine_instanceIds.png", "_leftImg8bit.png"),
+            # Make image path from label path: replace gtFine dir with leftImg8bit_sequence
+            # and swap the filename suffix
+            image_path = path.replace("gtFine", "leftImg8bit_sequence").replace(
+                "_gtFine_instanceIds.png", "_leftImg8bit.png"
             )
-            # Save path
-            self.images.append("/" + image_path.replace("gtFine", "leftImg8bit_sequence"))
+            self.images.append(image_path)
 
     def __len__(self) -> int:
         """Returns the length of the dataset.
