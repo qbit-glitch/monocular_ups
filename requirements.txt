@@ -1,48 +1,26 @@
 # ============================================================
-# Unsupervised Panoptic Segmentation — Requirements
+# Unsupervised Panoptic Pseudo-Label Generation — Requirements
 # ============================================================
 # Install: pip install -r requirements.txt
-# NOTE: torch, torchvision, and detectron2 are installed separately
-#       by setup.sh (with correct CUDA index URLs). Do NOT list them here.
+# NOTE: torch and torchvision are installed separately
+#       by setup.sh (with correct CUDA/MPS index URLs).
 # ============================================================
 
-# ─── Training Framework ───
-pytorch-lightning>=2.0.0
-
-# ─── Detectron2 dependencies (detectron2 itself installed from source) ───
-fvcore>=0.1.5
-colored>=1.4.3
-
 # ─── Vision & ML ───
-timm==0.9.12
-kornia>=0.6.11
 scikit-learn>=1.3.0
-scikit-image>=0.22.0
 scipy>=1.7.0
 opencv-python>=4.5.0
 Pillow>=9.2.0
 
-# ─── Metrics & Evaluation ───
-torchmetrics>=1.3.0
-pycocotools
-faster-coco-eval
-
-# ─── Config & Logging ───
-yacs>=0.1.8
-wandb>=0.15.4
-rtpt==0.0.4
+# ─── DINOv2 / CAUSE feature extraction ───
+timm==0.9.12
+transformers>=4.30.0
 
 # ─── CRF post-processing ───
 pydensecrf
 
 # ─── Cityscapes tools ───
 cityscapesscripts
-
-# ─── DINOv2 feature extraction ───
-transformers>=4.30.0
-
-# ─── Checkpoint downloading ───
-gdown>=4.7.1
 
 # ─── Misc ───
 numpy>=1.21.0
