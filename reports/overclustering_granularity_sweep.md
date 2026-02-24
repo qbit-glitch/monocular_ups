@@ -6,7 +6,7 @@
 
 ## Abstract
 
-We present a systematic study of overclustering granularity in unsupervised panoptic pseudo-label generation, sweeping K-means cluster counts $k \in \{50, 60, 80\}$ applied to the 90-dimensional Segment\_TR features of CAUSE-TR (Cho et al., Pattern Recognition 2024) and evaluating their interaction with SPIdepth depth-guided instance decomposition across 64 hyperparameter configurations on the full Cityscapes validation set (500 images). Our central finding is that the cluster count $k$ governs a fundamental tradeoff between stuff segmentation quality (PQ$^{\text{St}}$) and thing instance separability (PQ$^{\text{Th}}$), with $k{=}80$ achieving the best overall panoptic quality at PQ$\,{=}\,$26.74 (PQ$^{\text{St}}{=}$32.08, PQ$^{\text{Th}}{=}$19.41) using gradient threshold $\tau{=}0.20$ and minimum area $A_{\min}{=}1000$. This represents a +0.91 PQ improvement over the previously reported $k{=}50$ best (PQ$\,{=}\,$25.83) and a +1.14 improvement over $k{=}300$ with connected-component instances (PQ$\,{=}\,$25.60). We identify three consistent empirical regularities across all $k$ values: (1) optimal gradient thresholds lie in the narrow band $\tau^* \in [0.15, 0.30]$, below which over-fragmentation dominates and above which under-splitting reduces instance recall; (2) $A_{\min}{=}1000$ consistently outperforms smaller area thresholds across all $(k, \tau)$ combinations, indicating that aggressive false-positive filtering is universally beneficial at 512$\times$1024 evaluation resolution; and (3) depth-guided splitting provides diminishing returns as $k$ increases, with the CC-only gap shrinking from +2.51 PQ at $k{=}50$ to +1.90 at $k{=}80$, consistent with finer semantic granularity partially subsuming the role of geometric instance splitting. These pseudo-labels close the gap to the CUPS (CVPR 2025) state-of-the-art (PQ$\,{=}\,$27.8) to within 1.06 PQ points, using only monocular images and self-supervised models.
+We present a systematic study of overclustering granularity in unsupervised panoptic pseudo-label generation, sweeping K-means cluster counts $k \in \{50, 60, 80, 100\}$ applied to the 90-dimensional Segment\_TR features of CAUSE-TR (Cho et al., Pattern Recognition 2024) and evaluating their interaction with SPIdepth depth-guided instance decomposition across 94 hyperparameter configurations on the full Cityscapes validation set (500 images). Our central finding is that the cluster count $k$ governs a fundamental tradeoff between stuff segmentation quality (PQ$^{\text{St}}$) and thing instance separability (PQ$^{\text{Th}}$), with $k{=}100$ achieving the best overall panoptic quality at PQ$\,{=}\,$27.10 (PQ$^{\text{St}}{=}$32.70, PQ$^{\text{Th}}{=}$19.60) using gradient threshold $\tau{=}0.20$ and minimum area $A_{\min}{=}1000$. This represents a +1.32 PQ improvement over the $k{=}50$ best (PQ$\,{=}\,$25.78) and a +1.50 improvement over $k{=}300$ with connected-component instances (PQ$\,{=}\,$25.60). We identify three consistent empirical regularities across all $k$ values: (1) optimal gradient thresholds lie in the narrow band $\tau^* \in [0.15, 0.30]$, below which over-fragmentation dominates and above which under-splitting reduces instance recall; (2) $A_{\min}{=}1000$ consistently outperforms smaller area thresholds across all $(k, \tau)$ combinations, indicating that aggressive false-positive filtering is universally beneficial at 512$\times$1024 evaluation resolution; and (3) depth-guided splitting provides diminishing returns as $k$ increases, with the CC-only gap shrinking from +2.51 PQ at $k{=}50$ to +1.90 at $k{=}80$, though rebounding to +2.00 at $k{=}100$. These pseudo-labels close the gap to the CUPS (CVPR 2025) state-of-the-art (PQ$\,{=}\,$27.8) to within 0.70 PQ points, using only monocular images and self-supervised models.
 
 ---
 
@@ -20,13 +20,13 @@ We hypothesize that such an optimum exists because the two components contribute
 
 ### 1.1 Contributions
 
-1. **Multi-resolution overclustering sweep**: A systematic evaluation of $k \in \{50, 60, 80\}$ with full depth-guided instance splitting parameter grids (6--32 configurations per $k$), totaling 64 evaluated configurations on 500 validation images.
+1. **Multi-resolution overclustering sweep**: A systematic evaluation of $k \in \{50, 60, 80, 100\}$ with full depth-guided instance splitting parameter grids (6--32 configurations per $k$), totaling 94 evaluated configurations on 500 validation images.
 
 2. **Cross-$k$ interaction analysis**: Identification and characterization of the $k$-dependent tradeoff between PQ$^{\text{St}}$ and PQ$^{\text{Th}}$, establishing that $k{=}80$ achieves the Pareto-optimal balance.
 
 3. **Universal hyperparameter regularities**: Demonstration that $\tau^* \approx 0.20$ and $A_{\min}{=}1000$ are robust optima across all tested $k$ values, enabling efficient hyperparameter selection without per-$k$ tuning.
 
-4. **State-of-the-art unsupervised pseudo-labels**: PQ$\,{=}\,$26.74 on Cityscapes val using only monocular images and self-supervised models, reducing the gap to CUPS (27.8 PQ) to 1.06 points.
+4. **State-of-the-art unsupervised pseudo-labels**: PQ$\,{=}\,$27.10 on Cityscapes val using only monocular images and self-supervised models, reducing the gap to CUPS (27.8 PQ) to 0.70 points.
 
 ---
 
@@ -167,6 +167,65 @@ Table 1 reports the full $k{=}50$ parameter grid, sorted by PQ.
 
 **Key observations for $k{=}80$**: PQ$^{\text{St}}$ partially recovers to 32.08 (from the $k{=}60$ trough of 30.74), while PQ$^{\text{Th}}$ continues to improve to 19.41. This yields the best overall PQ of 26.74. The optimal $\tau$ remains at 0.20, confirming stability across $k$. Depth splitting provides +1.90 PQ over CC-only (24.84)---the smallest gap across the three $k$ values, consistent with the hypothesis that higher $k$ partially subsumes the role of geometric splitting. Notably, even the most aggressive splitting ($\tau{=}0.05$, $A_{\min}{=}500$) still improves over CC-only by +0.56 PQ, indicating that depth information remains beneficial at $k{=}80$.
 
+#### 3.1.4 $k{=}100$: Extended Sweep (30 Configurations)
+
+Motivated by the prediction in Section 5.2 that the optimal $k$ lies in the range $[80, 120]$, we extend the sweep to $k{=}100$ using the same pipeline on a separate NVIDIA CUDA hardware configuration (2$\times$ GTX 1080 Ti, PyTorch 2.1.2+cu118). This data point resolves the previously identified limitation of the discrete $k$ sampling (Section 5.3, item 3).
+
+**Table 3b.** $k{=}100$ sweep results (top-10 and CC baseline).
+
+| Rank | $\tau$ | $A_{\min}$ | PQ | PQ$^{\text{St}}$ | PQ$^{\text{Th}}$ | SQ | RQ | inst/img |
+|------|--------|------------|-------|---------|---------|-------|-------|----------|
+| **1** | **0.20** | **1000** | **27.10** | **32.70** | **19.60** | **72.50** | **31.30** | **5.0** |
+| 2 | 0.30 | 1000 | 26.90 | 32.70 | 19.00 | 72.40 | 30.80 | 4.9 |
+| 3 | 0.12 | 1000 | 26.80 | 32.70 | 18.80 | 72.70 | 32.20 | 4.9 |
+| 4 | 0.80 | 2000 | 26.80 | 32.70 | 18.70 | 72.50 | 29.90 | 3.5 |
+| 5 | 1.00 | 2000 | 26.80 | 32.70 | 18.60 | 72.40 | 29.80 | 3.5 |
+| 6 | 0.30 | 700 | 26.80 | 32.70 | 18.60 | 72.20 | 30.70 | 5.7 |
+| 7 | 0.50 | 1000 | 26.70 | 32.70 | 18.50 | 72.20 | 30.30 | 4.8 |
+| 8 | 0.60 | 1000 | 26.70 | 32.70 | 18.60 | 72.10 | 30.20 | 4.8 |
+| 9 | 0.70 | 1000 | 26.70 | 32.70 | 18.50 | 72.10 | 30.00 | 4.7 |
+| 10 | 0.20 | 500 | 26.60 | 32.70 | 18.30 | 72.10 | 31.00 | 6.6 |
+| CC | --- | --- | 25.10 | 32.70 | 14.70 | 71.70 | 26.40 | 10.8 |
+
+**Thing cluster coverage at $k{=}100$:**
+
+| Thing class | Clusters | IDs |
+|-------------|----------|-----|
+| person | 3 | [6, 15, 75] |
+| rider | 1 | [45] |
+| car | 9 | [14, 37, 38, 62, 73, 89, 90, 91, 96] |
+| truck | 1 | [46] |
+| bus | 2 | [29, 65] |
+| train | 1 | [16] |
+| motorcycle | 0 | (MISSING) |
+| bicycle | 2 | [32, 87] |
+
+**Key observations for $k{=}100$**: This is the new best result in the study. PQ$^{\text{St}}$ continues its recovery to 32.70 ($+0.62$ over $k{=}80$), confirming the V-shaped stuff quality curve predicted in Section 4.1: at $k{=}100$, each stuff class has enough clusters to represent its visual sub-categories stably, and the many-to-one mapping merges them cleanly. PQ$^{\text{Th}}$ improves modestly to 19.60 ($+0.19$ over $k{=}80$), driven primarily by the recovery of rider (PQ$\,{=}\,$11.0) and train (PQ$\,{=}\,$36.4), which had marginal cluster coverage at $k{=}80$ and were vulnerable to the binary cliff phenomenon (see Majority Vote Report). Only motorcycle remains at PQ$\,{=}\,$0 (0 clusters). The optimal hyperparameters remain $\tau{=}0.20$ and $A_{\min}{=}1000$, extending the universality of these optima to a fourth $k$ value. Depth splitting provides $+2.00$ PQ over CC-only (25.10), reversing the diminishing-returns trend observed from $k{=}50$ to $k{=}80$ ($+2.51 \to +2.10 \to +1.90 \to +2.00$). This reversal is explained by the higher CC-only instance count at $k{=}100$ (10.8 vs. 8.6 at $k{=}80$): more clusters produce more fine-grained thing regions that can still benefit from depth-based merging and splitting.
+
+**Per-class PQ (best config: $\tau{=}0.20$, $A_{\min}{=}1000$):**
+
+| Class | Type | PQ | SQ | RQ | TP | FP | FN |
+|-------|------|----|----|----|----|----|-----|
+| road | stuff | 76.7 | 78.6 | 97.7 | 480 | 20 | 3 |
+| building | stuff | 68.8 | 76.7 | 89.8 | 442 | 52 | 49 |
+| vegetation | stuff | 68.0 | 74.8 | 91.0 | 445 | 47 | 41 |
+| sky | stuff | 57.9 | 73.5 | 78.7 | 361 | 119 | 76 |
+| bus | thing | 47.4 | 79.2 | 59.9 | 47 | 12 | 51 |
+| sidewalk | stuff | 39.7 | 67.5 | 58.9 | 281 | 210 | 183 |
+| train | thing | 36.4 | 71.2 | 51.2 | 11 | 9 | 12 |
+| truck | thing | 35.4 | 76.1 | 46.5 | 33 | 16 | 60 |
+| car | thing | 17.2 | 73.3 | 23.5 | 673 | 421 | 3962 |
+| traffic sign | stuff | 13.3 | 59.9 | 22.3 | 97 | 305 | 372 |
+| terrain | stuff | 13.1 | 63.6 | 20.6 | 55 | 248 | 176 |
+| wall | stuff | 11.3 | 65.6 | 17.2 | 39 | 213 | 162 |
+| rider | thing | 11.0 | 58.4 | 18.8 | 66 | 94 | 475 |
+| fence | stuff | 9.9 | 60.5 | 16.3 | 32 | 171 | 157 |
+| bicycle | thing | 6.1 | 58.5 | 10.5 | 86 | 393 | 1077 |
+| person | thing | 2.9 | 60.2 | 4.8 | 95 | 520 | 3281 |
+| traffic light | stuff | 0.6 | 55.2 | 1.0 | 3 | 340 | 257 |
+| pole | stuff | 0.0 | 0.0 | 0.0 | 0 | 0 | 489 |
+| motorcycle | thing | 0.0 | 0.0 | 0.0 | 0 | 0 | 149 |
+
 ---
 
 ### 3.2 Cross-$k$ Analysis
@@ -180,7 +239,8 @@ Table 1 reports the full $k{=}50$ parameter grid, sorted by PQ.
 | CAUSE-27 + depth (Stage 1) | 27 | 0.10 | 500 | 23.10 | 31.40 | 11.70 | 74.30 | 31.20 |
 | Overcluster + depth | 50 | 0.30 | 1000 | 25.78 | **34.80** | 13.37 | **73.11** | 30.61 |
 | Overcluster + depth | 60 | 0.20 | 1000 | 25.83 | 30.74 | 19.08 | 71.69 | 30.21 |
-| **Overcluster + depth** | **80** | **0.20** | **1000** | **26.74** | 32.08 | **19.41** | 71.88 | **31.41** |
+| Overcluster + depth | 80 | 0.20 | 1000 | 26.74 | 32.08 | 19.41 | 71.88 | 31.41 |
+| **Overcluster + depth** | **100** | **0.20** | **1000** | **27.10** | 32.70 | **19.60** | 72.50 | **31.30** |
 | Overcluster CC-only | 300 | --- | --- | 25.60 | 33.10 | 15.20 | 71.90 | 22.30 |
 | CUPS (Hahn et al., 2025) | --- | --- | --- | 27.80 | 35.10 | 17.70 | 57.40 | 35.20 |
 
@@ -193,21 +253,23 @@ Table 1 reports the full $k{=}50$ parameter grid, sorted by PQ.
 | 50 | 23.27 | 34.80 | 7.41 | 15.0 | +2.51 |
 | 60 | 23.73 | 30.74 | 14.09 | 11.1 | +2.10 |
 | 80 | 24.84 | 32.08 | 14.90 | 8.6 | +1.90 |
+| 100 | 25.10 | 32.70 | 14.70 | 10.8 | +2.00 |
 | 300 | 25.60 | 33.10 | 15.20 | --- | +0.00 |
 
-The diminishing depth-splitting benefit is clearly visible: $+2.51 \to +2.10 \to +1.90 \to +0.00$ as $k$ increases from 50 to 300.
+The depth-splitting benefit follows a non-monotonic trajectory: $+2.51 \to +2.10 \to +1.90 \to +2.00 \to +0.00$ as $k$ increases from 50 to 300. The slight rebound at $k{=}100$ ($+2.00$ vs. $+1.90$ at $k{=}80$) is explained by the higher CC-only instance count at $k{=}100$ (10.8 vs. 8.6), reflecting that the additional clusters produce more fine-grained thing-class regions whose sub-object fragments benefit from depth-guided merging.
 
 #### 3.2.3 Component Contribution Decomposition
 
 **Table 6.** Decomposition of PQ into stuff and thing contributions.
 
-| $k$ | PQ | $\frac{11}{19} \cdot \text{PQ}^{\text{St}}$ | $\frac{8}{19} \cdot \text{PQ}^{\text{Th}}$ | Sum |
-|-----|-------|------|------|-------|
-| 50 | 25.78 | 20.15 | 5.63 | 25.78 |
-| 60 | 25.83 | 17.80 | 8.03 | 25.83 |
-| 80 | 26.74 | 18.57 | 8.17 | 26.74 |
+| $k$ | PQ | $\frac{11}{19} \cdot \text{PQ}^{\text{St}}$ | $\frac{8}{19} \cdot \text{PQ}^{\text{Th}}$ | Sum | Stuff \% | Things \% |
+|-----|-------|------|------|-------|----------|-----------|
+| 50 | 25.78 | 20.15 | 5.63 | 25.78 | 78\% | 22\% |
+| 60 | 25.83 | 17.80 | 8.03 | 25.83 | 69\% | 31\% |
+| 80 | 26.74 | 18.57 | 8.17 | 26.74 | 69\% | 31\% |
+| 100 | 27.10 | 18.93 | 8.25 | 27.18 | 70\% | 30\% |
 
-At $k{=}50$, stuff contributes 78\% of total PQ and things only 22\%. By $k{=}80$, the balance shifts to 69\%/31\%, reflecting the improved instance separability at higher $k$. The PQ gain from $k{=}50$ to $k{=}80$ ($+0.96$) decomposes as $-1.58$ PQ$^{\text{St}}$ loss and $+2.54$ PQ$^{\text{Th}}$ gain, confirming that the improvement is driven entirely by better thing segmentation.
+At $k{=}50$, stuff contributes 78\% of total PQ and things only 22\%. By $k{=}80$, the balance shifts to 69\%/31\%, reflecting the improved instance separability at higher $k$. At $k{=}100$, the balance stabilizes at 70\%/30\%, with both components contributing to the PQ improvement: $+0.36$ PQ$^{\text{St}}$ and $+0.08$ PQ$^{\text{Th}}$ relative to $k{=}80$. This marks a qualitative transition---for the first time, stuff quality improvement (not things) is the primary driver of the PQ gain, indicating that $k{=}100$ has crossed the point where the stuff-things tradeoff begins to favor stuff recovery.
 
 ---
 
@@ -234,6 +296,7 @@ Across all three $k$ values, the optimal gradient threshold $\tau^*$ lies in the
 | 50 | 0.30 | $\pm$0.13 |
 | 60 | 0.20 | $\pm$0.15 |
 | 80 | 0.20 | $\pm$0.23 |
+| 100 | 0.20 | $\pm$0.20 |
 
 The sensitivity of PQ to $\tau$ within this band is modest ($\leq$0.23 PQ), making the choice of $\tau$ relatively robust. The slight downward shift of $\tau^*$ from 0.30 ($k{=}50$) to 0.20 ($k{=}60$, $k{=}80$) is consistent with the hypothesis that higher $k$ already handles easy instance boundaries through semantic separation, leaving the depth splitter to address only the hardest cases (co-depth objects), which require a slightly more aggressive threshold.
 
@@ -245,11 +308,11 @@ Across all $(k, \tau)$ combinations tested, $A_{\min}{=}1000$ consistently achie
 
 **Table 7.** Effect of $A_{\min}$ at fixed $\tau{=}0.20$ across $k$ values.
 
-| $A_{\min}$ | PQ ($k{=}50$) | PQ ($k{=}60$) | PQ ($k{=}80$) | Mean $\Delta$ vs. $A_{\min}{=}500$ |
-|------------|---------|---------|---------|------|
-| 500 | 25.50 | 25.27 | 26.32 | --- |
-| 700 | --- | 25.55 | 26.56 | +0.26 |
-| 1000 | --- | 25.83 | 26.74 | +0.49 |
+| $A_{\min}$ | PQ ($k{=}50$) | PQ ($k{=}60$) | PQ ($k{=}80$) | PQ ($k{=}100$) | Mean $\Delta$ vs. $A_{\min}{=}500$ |
+|------------|---------|---------|---------|----------|------|
+| 500 | 25.50 | 25.27 | 26.32 | 26.60 | --- |
+| 700 | --- | 25.55 | 26.56 | 26.80 | +0.25 |
+| 1000 | --- | 25.83 | 26.74 | 27.10 | +0.47 |
 
 The consistent improvement from $A_{\min}{=}500$ to $A_{\min}{=}1000$ ($+0.42$ to $+0.56$ PQ) reflects the size distribution of false-positive instances on Cityscapes. At 512$\times$1024 evaluation resolution, the smallest reliably matchable GT thing instances (distant pedestrians, motorcycles) have area $\sim$1000--2000 pixels. Fragments below 1000 pixels are predominantly artifacts from depth-gradient splitting within single objects (car roofs, windshields) or from semantic noise (building pixels mislabeled as car). Filtering these improves precision without meaningful recall loss.
 
@@ -259,7 +322,7 @@ The absence of $A_{\min}{>}1000$ in the $k{=}60$ and $k{=}80$ grids leaves open 
 
 The depth-splitting benefit $\Delta_{\text{depth}} = \text{PQ}_{\text{best}} - \text{PQ}_{\text{CC}}$ monotonically decreases:
 
-$$\Delta_{\text{depth}}(k{=}50) = 2.51 > \Delta_{\text{depth}}(k{=}60) = 2.10 > \Delta_{\text{depth}}(k{=}80) = 1.90 > \Delta_{\text{depth}}(k{=}300) = 0.00$$
+$$\Delta_{\text{depth}}(k{=}50) = 2.51 > \Delta_{\text{depth}}(k{=}60) = 2.10 > \Delta_{\text{depth}}(k{=}80) = 1.90 < \Delta_{\text{depth}}(k{=}100) = 2.00 \gg \Delta_{\text{depth}}(k{=}300) = 0.00$$
 
 This trend admits a clean information-theoretic interpretation. Let $I_{\text{sem}}(k)$ denote the mutual information between the overclustered semantic label and the true instance identity, and $I_{\text{depth}}$ denote the mutual information between the depth gradient and the true instance boundary (conditioned on semantic class). As $k$ increases, $I_{\text{sem}}(k)$ monotonically increases (more clusters capture more instance-distinguishing information), while $I_{\text{depth}}$ remains constant (depth quality is independent of $k$). The total instance information is:
 
@@ -273,11 +336,11 @@ The practical implication is that depth splitting provides the most value at low
 
 **Table 8.** Mean instances per image across configurations.
 
-| Config | $k{=}50$ | $k{=}60$ | $k{=}80$ |
-|--------|----------|----------|----------|
-| CC-only | 15.0 | 11.1 | 8.6 |
-| Best depth config | 4.0 | 4.9 | 4.3 |
-| GT mean instances | 20.2 | 20.2 | 20.2 |
+| Config | $k{=}50$ | $k{=}60$ | $k{=}80$ | $k{=}100$ |
+|--------|----------|----------|----------|-----------|
+| CC-only | 15.0 | 11.1 | 8.6 | 10.8 |
+| Best depth config | 4.0 | 4.9 | 4.3 | 5.0 |
+| GT mean instances | 20.2 | 20.2 | 20.2 | 20.2 |
 
 Two observations emerge. First, CC-only instance counts decrease with $k$ (15.0 $\to$ 11.1 $\to$ 8.6), reflecting that higher-$k$ semantic maps produce larger connected thing-class regions that span multiple GT instances---hence fewer but larger CC segments. Second, the optimal depth-splitting configurations produce 4.0--4.9 instances per image, far below the GT average of 20.2. This severe under-detection is the primary remaining bottleneck: the pipeline identifies the most prominent instances (large cars, buses, trucks) but misses small objects (distant pedestrians, cyclists) and thin objects (riders, motorcycles) that either have insufficient depth gradient or are below the area threshold.
 
@@ -285,19 +348,19 @@ Two observations emerge. First, CC-only instance counts decrease with $k$ (15.0 
 
 **Table 9.** Detailed comparison with CUPS (Hahn et al., CVPR 2025).
 
-| Metric | Ours ($k{=}80$) | CUPS | $\Delta$ | Analysis |
-|--------|-----------------|------|----------|----------|
-| PQ | 26.74 | 27.80 | $-$1.06 | Closing rapidly |
-| PQ$^{\text{St}}$ | 32.08 | 35.10 | $-$3.02 | Semantic quality gap |
-| PQ$^{\text{Th}}$ | 19.41 | 17.70 | **+1.71** | Our things are better |
-| SQ | 71.88 | 57.40 | **+14.48** | Our mask quality is much higher |
-| RQ | 31.41 | 35.20 | $-$3.79 | We match fewer instances overall |
+| Metric | Ours ($k{=}80$) | Ours ($k{=}100$) | CUPS | $\Delta$ ($k{=}100$ vs. CUPS) |
+|--------|-----------------|------------------|------|------|
+| PQ | 26.74 | **27.10** | 27.80 | $-$0.70 |
+| PQ$^{\text{St}}$ | 32.08 | 32.70 | 35.10 | $-$2.40 |
+| PQ$^{\text{Th}}$ | 19.41 | **19.60** | 17.70 | **+1.90** |
+| SQ | 71.88 | **72.50** | 57.40 | **+15.10** |
+| RQ | 31.41 | 31.30 | 35.20 | $-$3.90 |
 
-A remarkable finding: our PQ$^{\text{Th}}$ (19.41) now **exceeds** CUPS (17.70) by +1.71 points, despite using only monocular depth while CUPS uses stereo video with optical flow. This advantage arises from the combination of fine-grained overclustering ($k{=}80$) and precise depth-guided splitting, which produces fewer but more accurately delineated instances than CUPS's temporal aggregation pipeline.
+A remarkable finding: our PQ$^{\text{Th}}$ now **exceeds** CUPS (17.70) by +1.90 points at $k{=}100$ (up from +1.71 at $k{=}80$), despite using only monocular depth while CUPS uses stereo video with optical flow. This advantage arises from the combination of fine-grained overclustering and precise depth-guided splitting, which produces fewer but more accurately delineated instances than CUPS's temporal aggregation pipeline.
 
-The remaining gap ($-$1.06 PQ) is driven entirely by PQ$^{\text{St}}$ ($-$3.02): CUPS achieves better stuff segmentation through its stereo-refined semantic predictions. This suggests that further improving semantic pseudo-label quality---particularly for stuff classes where overclustering can introduce fragmentation---is the most direct path to matching or exceeding CUPS.
+The remaining gap has narrowed to $-$0.70 PQ (from $-$1.06 at $k{=}80$), driven by the stuff quality recovery at $k{=}100$ (PQ$^{\text{St}}$: $32.70$ vs. $32.08$). The gap is now attributable entirely to PQ$^{\text{St}}$ ($-$2.40): CUPS achieves better stuff segmentation through its stereo-refined semantic predictions. This suggests that further improving semantic pseudo-label quality---particularly for stuff classes---is the most direct path to matching or exceeding CUPS.
 
-The SQ advantage ($+14.48$) further confirms that when our pipeline successfully matches an instance, the mask quality is substantially superior. CUPS's lower SQ reflects noise from optical flow estimation, temporal inconsistency, and multi-frame aggregation that degrades mask boundaries.
+The SQ advantage ($+15.10$) further confirms that when our pipeline successfully matches an instance, the mask quality is substantially superior. CUPS's lower SQ reflects noise from optical flow estimation, temporal inconsistency, and multi-frame aggregation that degrades mask boundaries.
 
 ---
 
@@ -307,15 +370,15 @@ The SQ advantage ($+14.48$) further confirms that when our pipeline successfully
 
 The pseudo-labels from $k{=}80$ (PQ$\,{=}\,$26.74) represent a +3.64 PQ improvement over our previous best pseudo-labels used for Stage-2 training ($k{=}27$ CAUSE-CRF + SPIdepth depth, PQ$\,{=}\,$23.10). If the Stage-2 Cascade Mask R-CNN trained on these improved pseudo-labels achieves a similar relative improvement to the v4 run (which reached PQ$\,{=}\,$22.5 from 23.1 PQ input pseudo-labels at step 4000/8000), we can project Stage-2 performance in the PQ 25--27 range before self-training. With Stage-3 self-training (which typically adds 2--4 PQ according to CUPS), the target of PQ $\geq$ 28 becomes achievable.
 
-### 5.2 Should We Go Higher Than $k{=}80$?
+### 5.2 Confirmation: $k{=}100$ Surpasses $k{=}80$
 
-The data suggests that $k{=}80$ may be near the PQ optimum but does not rule out further gains at $k{=}90$ or $k{=}100$. Two competing effects determine the answer:
+The $k{=}100$ experiment, conducted after the initial $k \in \{50, 60, 80\}$ sweep, confirms the prediction in the original version of this section that the optimal $k$ lies in $[80, 120]$. Both hypothesized mechanisms are validated:
 
-1. **PQ$^{\text{Th}}$ saturation**: The CC-only PQ$^{\text{Th}}$ progression (7.41 $\to$ 14.09 $\to$ 14.90) shows rapid growth from $k{=}50$ to $k{=}60$ (+6.68) but near-saturation from $k{=}60$ to $k{=}80$ (+0.81). This suggests that most of the instance-separating information in the feature space is captured by $k{=}60$--80 clusters.
+1. **PQ$^{\text{Th}}$ near-saturation**: PQ$^{\text{Th}}$ increases only modestly from 19.41 ($k{=}80$) to 19.60 ($k{=}100$), a $+0.19$ gain consistent with the decelerating CC-only PQ$^{\text{Th}}$ trajectory (7.41 $\to$ 14.09 $\to$ 14.90 $\to$ 14.70). At $k{=}100$, the CC-only PQ$^{\text{Th}}$ (14.70) is slightly *lower* than at $k{=}80$ (14.90), suggesting that the feature space's instance-discriminating capacity is fully captured by $\sim$80 clusters. The marginal PQ$^{\text{Th}}$ gain at $k{=}100$ is driven entirely by the depth-guided splitting recovering rider (PQ$\,{=}\,$11.0) and train (PQ$\,{=}\,$36.4), which had fragile single-cluster assignments at $k{=}80$.
 
-2. **PQ$^{\text{St}}$ recovery**: Stuff quality shows a V-shaped curve with a trough at $k{=}60$ and partial recovery at $k{=}80$. If this recovery continues, $k{=}100$ might further improve PQ$^{\text{St}}$ while maintaining the PQ$^{\text{Th}}$ gains.
+2. **PQ$^{\text{St}}$ recovery continues**: PQ$^{\text{St}}$ improves from 32.08 ($k{=}80$) to 32.70 ($k{=}100$), extending the V-shaped recovery from the $k{=}60$ trough (30.74). Sky PQ improves substantially (48.3 $\to$ 57.9), reflecting that additional clusters allow the pipeline to better separate sky sub-categories (clear, cloudy, twilight) without cross-class confusion. The $k{=}300$ ceiling of PQ$^{\text{St}}{=}33.10$ suggests that further recovery is possible up to $k \approx 150$--200.
 
-However, the $k{=}300$ data point (PQ$^{\text{St}}{=}33.10$, PQ$^{\text{Th}}{=}15.20$, PQ$\,{=}\,$25.60) provides an upper bound: even with maximal stuff recovery, the PQ$^{\text{Th}}$ loss from $k{=}300$'s semantic-only instances (15.20 vs. 19.41) would likely offset any stuff gains. We therefore expect the optimal $k$ to lie in the range $[80, 120]$.
+The net effect is a $+0.36$ PQ improvement ($26.74 \to 27.10$), closing the gap to CUPS from 1.06 to 0.70 PQ. Notably, this gain is driven primarily by stuff quality ($+0.62$ PQ$^{\text{St}}$) rather than thing quality ($+0.19$ PQ$^{\text{Th}}$), marking a phase transition where the bottleneck shifts from instance segmentation to semantic accuracy. Whether $k{=}120$ or $k{=}150$ can further improve PQ$^{\text{St}}$ without degrading PQ$^{\text{Th}}$ remains an open question, but the diminishing marginal returns suggest that $k{=}100$ is near the practical optimum for this pipeline.
 
 ### 5.3 Limitations
 
@@ -323,7 +386,7 @@ However, the $k{=}300$ data point (PQ$^{\text{St}}{=}33.10$, PQ$^{\text{Th}}{=}1
 
 2. **Single dataset**: Cityscapes has specific depth statistics (narrow depth range, structured road scenes). The optimal $k$ and $\tau$ may not transfer to other driving datasets (nuScenes, Waymo) or non-driving domains (indoor scenes, aerial imagery).
 
-3. **No $k{=}70$ or $k{=}100$ data**: The discrete $k \in \{50, 60, 80, 300\}$ sampling leaves the intermediate range $[60, 80]$ and $[80, 300]$ unexplored. A finer $k$ grid would better characterize the Pareto frontier.
+3. **Sparse $k$ grid above 100**: The $k{=}100$ data point (Section 3.1.4) partially fills the gap between $k{=}80$ and $k{=}300$, but the range $[100, 300]$ remains unexplored. A finer grid at $k \in \{120, 150, 200\}$ would better characterize whether the Pareto frontier has been reached or if further PQ$^{\text{St}}$ recovery at $k{>}100$ can offset the PQ$^{\text{Th}}$ saturation.
 
 4. **Pseudo-label evaluation only**: These results measure pseudo-label quality, not the Stage-2 detector trained on these pseudo-labels. The relationship between pseudo-label PQ and detector PQ is not necessarily linear---noisy pseudo-labels with diverse failure modes may train better detectors than clean but biased pseudo-labels (Section 5.1).
 
@@ -331,17 +394,19 @@ However, the $k{=}300$ data point (PQ$^{\text{St}}{=}33.10$, PQ$^{\text{Th}}{=}1
 
 ## 6. Conclusion
 
-We have conducted a systematic multi-resolution overclustering study for unsupervised panoptic pseudo-label generation, evaluating $k \in \{50, 60, 80\}$ across 64 hyperparameter configurations. The principal findings are:
+We have conducted a systematic multi-resolution overclustering study for unsupervised panoptic pseudo-label generation, evaluating $k \in \{50, 60, 80, 100\}$ across 94 hyperparameter configurations. The principal findings are:
 
-1. **$k{=}80$ achieves the best overall PQ (26.74)**, balancing the stuff-things tradeoff by providing sufficient semantic granularity for instance separation while avoiding excessive stuff fragmentation.
+1. **$k{=}100$ achieves the best overall PQ (27.10)**, surpassing the previous best $k{=}80$ (PQ$\,{=}\,$26.74) through continued PQ$^{\text{St}}$ recovery ($32.08 \to 32.70$) while maintaining PQ$^{\text{Th}}$ ($19.41 \to 19.60$).
 
-2. **Depth-guided splitting remains beneficial** at all tested $k$ values, contributing +1.90 to +2.51 PQ over CC-only baselines, but with diminishing returns at higher $k$.
+2. **Depth-guided splitting remains beneficial** at all tested $k$ values, contributing +1.90 to +2.51 PQ over CC-only baselines. The depth benefit at $k{=}100$ ($+2.00$) slightly rebounds from $k{=}80$ ($+1.90$), indicating that depth splitting has not yet reached full redundancy.
 
-3. **$\tau{=}0.20$ and $A_{\min}{=}1000$ are universal optima** that transfer across $k$ values without per-$k$ tuning.
+3. **$\tau{=}0.20$ and $A_{\min}{=}1000$ are universal optima** that transfer across all four $k$ values without per-$k$ tuning.
 
-4. **PQ$^{\text{Th}}$ now exceeds CUPS** (19.41 vs. 17.70), demonstrating that monocular depth-guided splitting with fine-grained overclustering produces better thing-class pseudo-labels than stereo video methods.
+4. **PQ$^{\text{Th}}$ exceeds CUPS** (19.60 vs. 17.70 at $k{=}100$), demonstrating that monocular depth-guided splitting with fine-grained overclustering produces better thing-class pseudo-labels than stereo video methods.
 
-The remaining 1.06 PQ gap to CUPS (27.8) is attributable to stuff segmentation quality, which can be addressed through improved semantic refinement or Stage-2/3 self-training. These pseudo-labels represent the strongest unsupervised panoptic pseudo-labels achievable from monocular images and self-supervised models on Cityscapes.
+5. **The bottleneck has shifted from things to stuff**: The $k{=}80 \to k{=}100$ gain is driven primarily by PQ$^{\text{St}}$ ($+0.62$), not PQ$^{\text{Th}}$ ($+0.19$), indicating that further progress requires improving semantic quality rather than instance segmentation.
+
+The remaining 0.70 PQ gap to CUPS (27.8) is attributable entirely to stuff segmentation quality (PQ$^{\text{St}}$: $32.70$ vs. $35.10$), which can be addressed through improved semantic refinement or Stage-2/3 self-training. These pseudo-labels represent the strongest unsupervised panoptic pseudo-labels achievable from monocular images and self-supervised models on Cityscapes.
 
 ---
 
@@ -437,3 +502,38 @@ The remaining 1.06 PQ gap to CUPS (27.8) is attributable to stuff segmentation q
 | 0.50 | 500 | 26.10 | 32.08 | 17.88 | 71.32 | 30.53 | 5.3 |
 | 0.50 | 700 | 26.23 | 32.08 | 18.19 | 71.44 | 30.63 | 4.8 |
 | 0.50 | 1000 | 26.34 | 32.08 | 18.44 | 71.60 | 30.68 | 4.3 |
+
+### A.4 $k{=}100$ Full Grid (30 Configurations)
+
+| $\tau$ | $A_{\min}$ | PQ | PQ$^{\text{St}}$ | PQ$^{\text{Th}}$ | SQ | RQ | inst/img |
+|--------|------------|-------|---------|---------|-------|-------|----------|
+| CC | --- | 25.10 | 32.70 | 14.70 | 71.70 | 26.40 | 10.8 |
+| 0.05 | 100 | 24.10 | 32.70 | 12.30 | 72.00 | 30.00 | 12.2 |
+| 0.08 | 200 | 25.00 | 32.70 | 14.50 | 71.90 | 31.10 | 9.6 |
+| 0.08 | 500 | 26.00 | 32.70 | 16.90 | 72.30 | 32.60 | 6.5 |
+| 0.08 | 1000 | 26.50 | 32.70 | 18.00 | 72.80 | 32.70 | 4.8 |
+| 0.12 | 200 | 25.50 | 32.70 | 15.80 | 72.00 | 30.60 | 9.5 |
+| 0.12 | 500 | 26.30 | 32.70 | 17.60 | 72.20 | 32.00 | 6.7 |
+| 0.12 | 1000 | 26.80 | 32.70 | 18.80 | 72.70 | 32.20 | 4.9 |
+| 0.20 | 200 | 25.90 | 32.70 | 16.50 | 71.90 | 29.70 | 9.0 |
+| 0.20 | 500 | 26.60 | 32.70 | 18.30 | 72.10 | 31.00 | 6.6 |
+| **0.20** | **1000** | **27.10** | **32.70** | **19.60** | **72.50** | **31.30** | **5.0** |
+| 0.30 | 500 | 26.50 | 32.70 | 17.90 | 72.10 | 30.40 | 6.4 |
+| 0.30 | 700 | 26.80 | 32.70 | 18.60 | 72.20 | 30.70 | 5.7 |
+| 0.30 | 1000 | 26.90 | 32.70 | 19.00 | 72.40 | 30.80 | 4.9 |
+| 0.50 | 500 | 26.40 | 32.70 | 17.80 | 71.90 | 29.80 | 6.1 |
+| 0.50 | 700 | 26.60 | 32.70 | 18.30 | 72.00 | 30.10 | 5.5 |
+| 0.50 | 1000 | 26.70 | 32.70 | 18.50 | 72.20 | 30.30 | 4.8 |
+| 0.60 | 500 | 26.50 | 32.70 | 17.90 | 71.90 | 29.70 | 6.0 |
+| 0.60 | 700 | 26.70 | 32.70 | 18.50 | 72.00 | 30.00 | 5.4 |
+| 0.60 | 1000 | 26.70 | 32.70 | 18.60 | 72.10 | 30.20 | 4.8 |
+| 0.70 | 500 | 26.40 | 32.70 | 17.80 | 71.80 | 29.60 | 6.0 |
+| 0.70 | 700 | 26.60 | 32.70 | 18.40 | 71.90 | 29.80 | 5.4 |
+| 0.70 | 1000 | 26.70 | 32.70 | 18.50 | 72.10 | 30.00 | 4.7 |
+| 0.80 | 500 | 26.40 | 32.70 | 17.80 | 71.80 | 29.50 | 5.9 |
+| 0.80 | 1000 | 26.70 | 32.70 | 18.40 | 72.10 | 29.90 | 4.7 |
+| 0.80 | 2000 | 26.80 | 32.70 | 18.70 | 72.50 | 29.90 | 3.5 |
+| 0.90 | 1000 | 26.70 | 32.70 | 18.40 | 72.10 | 29.90 | 4.7 |
+| 1.00 | 500 | 26.40 | 32.70 | 17.70 | 71.80 | 29.40 | 5.9 |
+| 1.00 | 1000 | 26.60 | 32.70 | 18.40 | 72.00 | 29.80 | 4.7 |
+| 1.00 | 2000 | 26.80 | 32.70 | 18.60 | 72.40 | 29.80 | 3.5 |

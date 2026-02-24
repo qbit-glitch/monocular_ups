@@ -36,6 +36,7 @@ wandb/
 
 # Model weights & checkpoints
 cups/model/backbone_checkpoints/*.pkl
+refs/cups/cups/model/backbone_checkpoints/*.pkl
 refs/cause/CAUSE/*.pth
 refs/cause/checkpoint/*.pth
 refs/spidepth/checkpoints/*.pth

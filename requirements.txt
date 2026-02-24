@@ -26,3 +26,14 @@ cityscapesscripts
 numpy>=1.21.0
 tqdm
 matplotlib
+
+# ─── Stage-2: CUPS training (Detectron2 + PyTorch Lightning) ───
+# Install detectron2 separately: python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
+pytorch-lightning>=2.0.0
+kornia>=0.6.11
+yacs
+wandb>=0.15.4
+rtpt==0.0.4
+pycocotools
+einops
+torchmetrics==1.3.1
