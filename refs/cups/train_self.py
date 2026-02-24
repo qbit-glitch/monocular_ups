@@ -225,6 +225,7 @@ def main() -> None:
             config.SYSTEM.DISTRIBUTED_BACKEND if config.SYSTEM.NUM_GPUS == 1 else "ddp_find_unused_parameters_true"
         ),
         precision=config.TRAINING.PRECISION,
+        accumulate_grad_batches=config.TRAINING.ACCUMULATE_GRAD_BATCHES,
         max_steps=config.SELF_TRAINING.ROUND_STEPS * config.SELF_TRAINING.ROUNDS,
         min_steps=config.SELF_TRAINING.ROUND_STEPS * config.SELF_TRAINING.ROUNDS,
         callbacks=[

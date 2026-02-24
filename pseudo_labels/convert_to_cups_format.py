@@ -332,15 +332,19 @@ def main():
                         help="Gaussian blur sigma for depth smoothing (default: 1.0)")
     parser.add_argument("--dilation_iters", type=int, default=3,
                         help="Morphological dilation iterations for boundary reclamation (default: 3)")
+    parser.add_argument("--use_trainid_things", action="store_true",
+                        help="Use standard Cityscapes thing trainIDs {11-18} instead of centroids-based "
+                             "thing cluster IDs. Use this when input semantics are 19-class trainIDs.")
 
     args = parser.parse_args()
 
     if args.cc_instances and args.depth_instances:
         parser.error("--cc_instances and --depth_instances are mutually exclusive")
-    if args.cc_instances and args.centroids_path is None:
-        parser.error("--centroids_path is required when --cc_instances is set")
-    if args.depth_instances and args.centroids_path is None:
-        parser.error("--centroids_path is required when --depth_instances is set")
+    if not args.use_trainid_things:
+        if args.cc_instances and args.centroids_path is None:
+            parser.error("--centroids_path is required when --cc_instances is set (unless --use_trainid_things)")
+        if args.depth_instances and args.centroids_path is None:
+            parser.error("--centroids_path is required when --depth_instances is set (unless --use_trainid_things)")
 
     cs_root = Path(args.cityscapes_root)
     semantic_dir = cs_root / args.semantic_subdir
@@ -354,7 +358,15 @@ def main():
     num_classes = args.num_classes
 
     # Determine thing IDs
-    if use_cc or use_depth:
+    if args.use_trainid_things:
+        # Standard Cityscapes thing trainIDs (for 19-class mapped input)
+        thing_ids = {11, 12, 13, 14, 15, 16, 17, 18}
+        mode = "depth-guided" if use_depth else ("CC" if use_cc else "NPZ")
+        logger.info(f"Mode: {mode} instances with standard thing trainIDs {{11-18}}")
+        if use_depth:
+            logger.info(f"  grad_threshold={args.grad_threshold}, min_area={args.min_instance_area}, "
+                        f"dilation={args.dilation_iters}, blur_sigma={args.depth_blur_sigma}")
+    elif use_cc or use_depth:
         thing_ids = determine_thing_cluster_ids(args.centroids_path)
         mode = "depth-guided" if use_depth else "CC"
         logger.info(f"Mode: {mode} instances on {num_classes} raw clusters")
