@@ -99,13 +99,26 @@ class PanopticQualitySemanticMatching(PanopticQualityTM):
         self.add_state("targets", default=[], dist_reduce_fx=None)
 
     def _apply(self, fn):
-        """Keep metric on CPU — MPS doesn't support float64 required by PQ computation.
+        """Handle device moves safely.
 
-        torchmetrics PanopticQuality internally creates float64 tensors on the
-        metric's device.  MPS cannot handle float64, so we prevent the metric
-        (and all its state tensors) from ever being moved off CPU.
+        MPS doesn't support float64 required by PQ computation, so we keep the
+        metric on CPU when MPS is the target device.  CUDA supports float64
+        natively, so we allow normal device moves (with float64->float32
+        pre-conversion as a safety net).
         """
-        return self
+        # Detect if fn is moving tensors to MPS by probing a dummy tensor
+        try:
+            probe = fn(torch.tensor(0.0))
+            if probe.device.type == "mps":
+                return self  # Stay on CPU — MPS can't handle float64
+        except Exception:
+            pass
+        # CUDA / CPU: allow normal move, but pre-convert float64 -> float32
+        def safe_fn(t):
+            if isinstance(t, Tensor) and t.dtype == torch.float64:
+                t = t.to(torch.float32)
+            return fn(t)
+        return super()._apply(safe_fn)
 
     def _cost_matrix_update(
         self,
