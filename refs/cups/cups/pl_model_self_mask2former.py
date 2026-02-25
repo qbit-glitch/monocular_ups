@@ -318,10 +318,11 @@ def build_model_self_mask2former(
         else:
             state_dict = checkpoint
 
-        # Infer num_classes from class_predictor weight shape (num_classes+1, hidden)
+        # Infer num_classes from class prediction head weight shape (num_classes+1, hidden)
+        # HF Mask2Former uses "class_predictor"; also search "class_embed", "class_head"
         class_pred_key = None
         for k in state_dict:
-            if "class_predictor" in k and "weight" in k:
+            if ("class_predictor" in k or "class_embed" in k or "class_head" in k) and "weight" in k:
                 class_pred_key = k
                 break
 
@@ -329,9 +330,25 @@ def build_model_self_mask2former(
             num_classes = state_dict[class_pred_key].shape[0] - 1
             log.info(f"Inferred {num_classes} classes from checkpoint key {class_pred_key}")
         else:
-            assert thing_pseudo_classes is not None and stuff_pseudo_classes is not None, \
-                "Cannot infer num_classes from checkpoint. Provide thing/stuff_pseudo_classes."
-            num_classes = len(thing_pseudo_classes) + len(stuff_pseudo_classes)
+            # Log state_dict keys for debugging
+            sample_keys = [k for k in list(state_dict.keys())[:20]]
+            class_keys = [k for k in state_dict if "class" in k.lower()]
+            log.warning(f"Could not find class_predictor key in state_dict.")
+            log.warning(f"Keys containing 'class': {class_keys}")
+            log.warning(f"First 20 keys: {sample_keys}")
+
+            # Try hyper_parameters from Lightning checkpoint
+            hparams = checkpoint.get("hyper_parameters", {})
+            if "num_stuff_pseudo_classes" in hparams and "num_thing_pseudo_classes" in hparams:
+                num_classes = hparams["num_stuff_pseudo_classes"] + hparams["num_thing_pseudo_classes"]
+                log.info(f"Inferred {num_classes} classes from checkpoint hyper_parameters")
+            elif thing_pseudo_classes is not None and stuff_pseudo_classes is not None:
+                num_classes = len(thing_pseudo_classes) + len(stuff_pseudo_classes)
+            else:
+                raise ValueError(
+                    "Cannot infer num_classes from checkpoint. "
+                    "Provide thing/stuff_pseudo_classes."
+                )
 
     else:
         assert thing_pseudo_classes is not None and stuff_pseudo_classes is not None, \
