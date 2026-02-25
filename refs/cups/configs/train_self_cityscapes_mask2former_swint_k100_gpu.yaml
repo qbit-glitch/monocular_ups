@@ -78,3 +78,4 @@ SYSTEM:
   RUN_NAME: "cups_mask2former_swint_k100_stage3_self"
 VALIDATION:
   CACHE_DEVICE: "cpu"
+
