@@ -232,7 +232,7 @@ class Mask2FormerWrapper(nn.Module):
 
         processed = []
         for idx, result in enumerate(results):
-            hf_seg = result["segmentation"]  # (H, W) tensor, segment IDs
+            hf_seg = result["segmentation"].long()  # (H, W) tensor, integer segment IDs
             hf_segments = result["segments_info"]  # list of dicts
 
             # Convert HF segments_info to Detectron2 format with correct category_id
