@@ -311,9 +311,9 @@ class UnsupervisedModel(LightningModule):
             zeros = torch.zeros_like(resized_sem_pred)
             resized_sem_pred = torch.stack((resized_sem_pred, zeros), dim=-1)
             resized_sem_label = torch.stack((resized_sem_label, zeros), dim=-1)
-            self.panoptic_quality.update(resized_sem_pred, resized_sem_label)
+            self.panoptic_quality.update(resized_sem_pred.cpu(), resized_sem_label.cpu())
         else:
-            self.panoptic_quality.update(panoptic_predictions, panoptic_labels)
+            self.panoptic_quality.update(panoptic_predictions.cpu(), panoptic_labels.cpu())
 
     def on_validation_epoch_end(self) -> None:
         """Accumulate metric after validation."""

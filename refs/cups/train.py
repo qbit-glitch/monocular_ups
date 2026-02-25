@@ -7,9 +7,11 @@ from argparse import REMAINDER, ArgumentParser
 from datetime import datetime
 from typing import Any, Dict
 
-# Python 3.14+ defaults to 'forkserver' which can't pickle lambdas/local functions.
+# macOS defaults to 'spawn' (since Python 3.8) and Python 3.14+ defaults to
+# 'forkserver' — both can't pickle lambdas/local functions used in DataLoader.
 # Use 'fork' for DataLoader worker compatibility.
-if sys.version_info >= (3, 14):
+import platform
+if platform.system() == "Darwin" or sys.version_info >= (3, 14):
     multiprocessing.set_start_method("fork", force=True)
 
 import torch.nn
@@ -30,6 +32,11 @@ from torch.utils.data import DataLoader
 from yacs.config import CfgNode
 
 import cups
+
+
+def _identity_collate(x):
+    """Identity collate function (replaces lambda x: x for picklability)."""
+    return x
 from cups.augmentation import (
     CopyPasteAugmentation,
     PhotometricAugmentations,
@@ -128,7 +135,7 @@ def main() -> None:
         ignore_unknown_thing_regions=config.DATA.IGNORE_UNKNOWN_THING_REGIONS,
         augmentations=get_pseudo_label_augmentations(config.DATA.CROP_RESOLUTION),
         dataset=config.DATA.DATASET,
-        only_use_non_empty_samples=True,
+        only_use_non_empty_samples=(config.MODEL.BACKBONE_TYPE != "mask2former_swinl"),
     )
     # Init validation set
     if config.DATA.DATASET == "cityscapes":
@@ -164,7 +171,7 @@ def main() -> None:
         batch_size=config.TRAINING.BATCH_SIZE,
         shuffle=True,
         num_workers=num_workers,
-        collate_fn=lambda x: x,
+        collate_fn=_identity_collate,
         drop_last=True,
         pin_memory=False,
         persistent_workers=False,

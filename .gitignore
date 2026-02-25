@@ -47,6 +47,7 @@ cups_pseudo_labels*/
 
 # Downloaded datasets
 datasets/
+weights/
 
 # Env
 .env

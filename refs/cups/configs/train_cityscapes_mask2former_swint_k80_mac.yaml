@@ -1,16 +1,17 @@
-# Stage-2 training: Mask2Former Swin-Tiny (COCO panoptic pre-trained)
-# Pseudo-labels: k=100 overclustered CAUSE semantics + SPIdepth depth-guided instances
+# Stage-2 training: Mask2Former Swin-Tiny on Mac MPS
+# Pseudo-labels: k=80 overclustered CAUSE + CC instances
+# Hardware: Apple M4 Pro 48GB unified memory
 #
-# Key design choices:
-#   - Swin-Tiny backbone frozen (BACKBONE_LR_MULTIPLIER=0.0)
-#   - class_embed reinitialized for k=100 classes, trained at 10x base LR
-#   - Hungarian matching replaces DropLoss (DROP_LOSS=False)
-#   - Gradient clip 0.01 (Mask2Former default, stricter than CUPS 1.0)
-#   - batch_size=4 + accumulate=4 = effective 16 (Swin-T fits easily on A6000 48GB)
+# Key differences from GPU config:
+#   - accelerator: mps (Apple Silicon)
+#   - precision: 32-true (MPS has limited bf16/fp16 support)
+#   - batch_size: 2 (conservative for 48GB unified memory)
+#   - num_workers: 2 (MPS can have issues with multiprocess DataLoader)
 #
 # Usage:
-#   python refs/cups/train.py \
-#       --experiment_config_file refs/cups/configs/train_cityscapes_mask2former_swinl_k100.yaml \
+#   cd unsupervised-panoptic-segmentation
+#   PYTHONPATH=refs/cups:$PYTHONPATH python refs/cups/train.py \
+#       --experiment_config_file refs/cups/configs/train_cityscapes_mask2former_swint_k80_mac.yaml \
 #       --disable_wandb
 DATA:
   CROP_RESOLUTION: (640, 1280)
@@ -18,9 +19,9 @@ DATA:
   DATASET: "cityscapes"
   IGNORE_UNKNOWN_THING_REGIONS: True
   THING_STUFF_THRESHOLD: 0.01
-  ROOT: "datasets/cityscapes/"
-  ROOT_VAL: "datasets/cityscapes/"
-  ROOT_PSEUDO: "datasets/cityscapes/cups_pseudo_labels_k100/"
+  ROOT: "/Users/qbit-glitch/Desktop/datasets/cityscapes/"
+  ROOT_VAL: "/Users/qbit-glitch/Desktop/datasets/cityscapes/"
+  ROOT_PSEUDO: "/Users/qbit-glitch/Desktop/datasets/cityscapes/cups_pseudo_labels_k80_train/"
 MODEL:
   BACKBONE_TYPE: "mask2former_swinl"
   INFERENCE_CONFIDENCE_THRESHOLD: 0.5
@@ -47,16 +48,16 @@ AUGMENTATION:
     - [672, 1344]
     - [704, 1408]
 SYSTEM:
-  ACCELERATOR: "gpu"
+  ACCELERATOR: "mps"
   NUM_GPUS: 1
-  NUM_WORKERS: 4
+  NUM_WORKERS: 2
   LOG_PATH: "experiments"
-  RUN_NAME: "cups_mask2former_swint_k100_stage2"
+  RUN_NAME: "cups_mask2former_swint_k80_mac"
 TRAINING:
   STEPS: 4000
-  BATCH_SIZE: 4
-  ACCUMULATE_GRAD_BATCHES: 4
-  PRECISION: "bf16-mixed"
+  BATCH_SIZE: 2
+  ACCUMULATE_GRAD_BATCHES: 8
+  PRECISION: "32-true"
   OPTIMIZER: "adamw"
   ADAMW:
     LEARNING_RATE: 0.0001

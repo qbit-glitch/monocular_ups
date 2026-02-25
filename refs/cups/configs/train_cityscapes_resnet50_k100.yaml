@@ -4,13 +4,15 @@
 #
 # CUPS paper: batch_size=16 (default), 4000 steps, AdamW
 #
-# Key fixes (v3):
-#   - IGNORE_UNKNOWN_THING_REGIONS: True (CUPS default — critical for DropLoss)
-#   - THING_STUFF_THRESHOLD: 0.01 (tuned for k=100 overclustering)
+# Key fixes (v4 — reverted IGNORE_UNKNOWN from v3):
+#   - IGNORE_UNKNOWN_THING_REGIONS: False (reverted — True causes massive pixel
+#     dropout with k=100 + threshold=0.01, losing ~50% of semantic signal)
+#   - THING_STUFF_THRESHOLD: 0.05 (raised from 0.01 to reduce false thing clusters)
 #   - Full resolution jitter (11 scales, matching CUPS default)
-#   - NUM_STEPS_STARTUP: 500 (CUPS default, was 1000)
-#   - VAL_EVERY_N_STEPS: 200 (CUPS default, was 500)
-#   - PRECISION: bf16-mixed (CUPS uses bf16, more stable than fp16)
+#   - NUM_STEPS_STARTUP: 500 (CUPS default)
+#   - VAL_EVERY_N_STEPS: 200 (CUPS default)
+#   - PRECISION: 16-mixed (bf16 requires Ampere+; use fp16 for Pascal/Turing GPUs)
+#   - STEPS: 8000 (previous best PQ peaked at step 6500)
 #
 # Usage:
 #   python refs/cups/train.py \
@@ -20,13 +22,15 @@ DATA:
   CROP_RESOLUTION: (640, 1280)
   SCALE: 0.625
   DATASET: "cityscapes"
-  # CUPS default is True — thing pixels without instance masks become "ignore"
-  # in the semantic loss. Critical for DropLoss instance discovery.
-  IGNORE_UNKNOWN_THING_REGIONS: True
-  # Lower threshold for k=100 overclustering: ~25 thing clusters → each gets
-  # normalized score ~1/25=0.04, well below the default 0.08. Use 0.01 to
-  # ensure all thing clusters are captured.
-  THING_STUFF_THRESHOLD: 0.01
+  # REVERTED to False. With k=100 + threshold=0.05, too many thing clusters
+  # still have sparse instance coverage → IGNORE=True drops huge pixel counts.
+  # CUPS uses True with k=27 where thing/stuff split is clean. Our k=100
+  # overclustering makes the split noisy → False is safer.
+  IGNORE_UNKNOWN_THING_REGIONS: False
+  # Raised from 0.01 to 0.05: reduces false-positive thing clusters.
+  # With k=100, genuine thing clusters should have scores >> 0.05.
+  # Stuff clusters with stray instance overlaps (~1-3%) get filtered out.
+  THING_STUFF_THRESHOLD: 0.05
   ROOT: "datasets/cityscapes/"
   ROOT_VAL: "datasets/cityscapes/"
   ROOT_PSEUDO: "datasets/cityscapes/cups_pseudo_labels_k100/"
@@ -34,13 +38,10 @@ MODEL:
   BACKBONE_TYPE: "resnet50"
   USE_DINO: True
 AUGMENTATION:
-  # CUPS default: 500. Self-enhanced copy-paste starts using model predictions
-  # at this step. Earlier = more time for instance discovery.
   NUM_STEPS_STARTUP: 500
   COPY_PASTE: True
   MAX_NUM_PASTED_OBJECTS: 8
-  # CUPS default: 11 resolutions from 384 to 704. MUST include scales >= crop
-  # size (640×1280) so the model sees full-detail crops, not just padded images.
+  # CUPS default: 11 resolutions from 384 to 704.
   RESOLUTIONS:
     - [384, 768]
     - [416, 832]
@@ -57,18 +58,16 @@ SYSTEM:
   NUM_GPUS: 1
   NUM_WORKERS: 4
   LOG_PATH: "experiments"
-  RUN_NAME: "cups_resnet50_k100_v3_stage2"
+  RUN_NAME: "cups_resnet50_k100_v4_stage2"
 TRAINING:
-  STEPS: 4000
+  STEPS: 8000
   BATCH_SIZE: 16
-  # CUPS default is "bf16". BF16 has same dynamic range as FP32 (8 exponent
-  # bits) vs FP16's 5. More numerically stable with 100 classes.
-  PRECISION: "bf16-mixed"
+  # Use fp16 for GTX 1080 Ti / RTX 20xx. Use bf16-mixed only on Ampere+ (A100, A6000, RTX 30xx+).
+  PRECISION: "16-mixed"
   OPTIMIZER: "adamw"
   ADAMW:
     LEARNING_RATE: 0.0001
     WEIGHT_DECAY: 0.00001
-  # CUPS default: 200. More frequent validation = finer checkpoint selection.
   VAL_EVERY_N_STEPS: 200
   ACCUMULATE_GRAD_BATCHES: 1
   DROP_LOSS: True

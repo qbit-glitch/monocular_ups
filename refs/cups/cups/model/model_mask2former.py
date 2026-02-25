@@ -1,4 +1,4 @@
-"""Mask2Former (Swin-L) wrapper for CUPS unsupervised panoptic segmentation.
+"""Mask2Former wrapper for CUPS unsupervised panoptic segmentation.
 
 Loads a HuggingFace pre-trained Mask2Former and wraps it so that:
 - Training: accepts CUPS Detectron2-format dicts, returns a loss dict.
@@ -39,7 +39,7 @@ logging.basicConfig(format="%(message)s")
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 
-# ImageNet normalization used by Swin-L / Mask2Former
+# ImageNet normalization used by Swin / Mask2Former
 IMAGENET_MEAN = torch.tensor([0.485, 0.456, 0.406])
 IMAGENET_STD = torch.tensor([0.229, 0.224, 0.225])
 
@@ -61,8 +61,8 @@ class Mask2FormerWrapper(nn.Module):
         self,
         num_classes: int,
         num_stuff_classes: int,
-        pretrained: str = "facebook/mask2former-swin-large-coco-panoptic",
-        num_queries: int = 200,
+        pretrained: str = "facebook/mask2former-swin-tiny-coco-panoptic",
+        num_queries: int = 100,
         freeze_backbone: bool = True,
         no_object_weight: float = 0.1,
         confidence_threshold: float = 0.5,
@@ -108,7 +108,7 @@ class Mask2FormerWrapper(nn.Module):
         self.register_buffer("pixel_std", IMAGENET_STD.view(3, 1, 1), persistent=False)
 
     def _freeze_backbone(self) -> None:
-        """Freeze the Swin-L backbone (pixel_level_module.encoder)."""
+        """Freeze the Swin backbone (pixel_level_module.encoder)."""
         frozen = 0
         for name, param in self.model.named_parameters():
             if "pixel_level_module.encoder" in name:
@@ -232,8 +232,25 @@ class Mask2FormerWrapper(nn.Module):
 
         processed = []
         for idx, result in enumerate(results):
-            hf_seg = result["segmentation"].long()  # (H, W) tensor, integer segment IDs
+            hf_seg = result["segmentation"].long()  # (H, W) tensor, segment IDs
             hf_segments = result["segments_info"]  # list of dicts
+
+            # --- Normalize segment IDs to CUPS Detectron2 convention ---
+            # HuggingFace post_process_panoptic_segmentation returns:
+            #   Newer transformers (>=4.40): -1=background, 0-based segment IDs
+            #   Older transformers: 0=background, 1-based segment IDs
+            # CUPS expects: 0=background, positive (1-based) segment IDs
+            if hf_seg.numel() > 0 and hf_seg.min().item() < 0:
+                # Newer HF: shift -1→0 (bg), 0→1, 1→2, ...
+                hf_seg = hf_seg + 1
+                for seg in hf_segments:
+                    seg["id"] = seg["id"] + 1
+
+            # Handle edge case: no segments above threshold (random init class head)
+            # All pixels are background (0). Provide trivial empty output.
+            H, W = target_sizes[idx]
+            if len(hf_segments) == 0:
+                hf_seg = torch.zeros(H, W, dtype=torch.long, device=hf_seg.device)
 
             # Convert HF segments_info to Detectron2 format with correct category_id
             d2_segments = []
@@ -329,8 +346,8 @@ class Mask2FormerWrapper(nn.Module):
 def build_mask2former(
     num_classes: int,
     num_stuff_classes: int,
-    pretrained: str = "facebook/mask2former-swin-large-coco-panoptic",
-    num_queries: int = 200,
+    pretrained: str = "facebook/mask2former-swin-tiny-coco-panoptic",
+    num_queries: int = 100,
     freeze_backbone: bool = True,
     no_object_weight: float = 0.1,
     confidence_threshold: float = 0.5,
@@ -341,8 +358,8 @@ def build_mask2former(
         num_classes: Total number of pseudo-label classes (stuff + things).
         num_stuff_classes: Number of stuff classes (for ID mapping).
         pretrained: HuggingFace model ID.
-        num_queries: Number of mask queries (200 for Swin-L).
-        freeze_backbone: If True, freeze Swin-L backbone.
+        num_queries: Number of mask queries (100 for Swin-T, 200 for Swin-L).
+        freeze_backbone: If True, freeze Swin backbone.
         no_object_weight: Weight for the no-object class in CE loss.
         confidence_threshold: Score threshold for inference.
 

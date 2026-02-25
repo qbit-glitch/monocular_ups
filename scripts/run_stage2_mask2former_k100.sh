@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════════
-# Stage-2: Mask2Former Swin-L (COCO pre-trained) fine-tuning
+# Stage-2: Mask2Former Swin-Tiny (COCO pre-trained) fine-tuning
 # Pseudo-labels: k=100 overclustered CAUSE + SPIdepth depth-guided
 # ═══════════════════════════════════════════════════════════════════
 #
@@ -10,13 +10,13 @@
 #   2. Pseudo-labels at datasets/cityscapes/cups_pseudo_labels_k100/
 #   3. GT validation at datasets/cityscapes/gtFine/
 #   4. HuggingFace transformers installed (pip install transformers)
-#   5. ~4GB disk for Swin-L checkpoint (auto-downloaded from HuggingFace)
+#   5. ~190MB disk for Swin-Tiny checkpoint (auto-downloaded or pre-cached)
 #
 # Usage:
 #   bash scripts/run_stage2_mask2former_k100.sh
 #
 # Monitor:
-#   tail -f experiments/cups_mask2former_swinl_k100_stage2.log
+#   tail -f experiments/cups_mask2former_swint_k100_stage2.log
 
 set -euo pipefail
 
@@ -28,11 +28,11 @@ export PYTHONPATH="${REPO_ROOT}/refs/cups:${PYTHONPATH:-}"
 
 CONFIG="refs/cups/configs/train_cityscapes_mask2former_swinl_k100.yaml"
 LOG_DIR="experiments"
-LOG_FILE="${LOG_DIR}/cups_mask2former_swinl_k100_stage2.log"
+LOG_FILE="${LOG_DIR}/cups_mask2former_swint_k100_stage2.log"
 
 mkdir -p "${LOG_DIR}"
 
-echo "=== CUPS Stage-2: Mask2Former Swin-L + k=100 Pseudo-Labels ===" | tee "${LOG_FILE}"
+echo "=== CUPS Stage-2: Mask2Former Swin-Tiny + k=100 Pseudo-Labels ===" | tee "${LOG_FILE}"
 echo "Started: $(date)" | tee -a "${LOG_FILE}"
 echo "Repo root: ${REPO_ROOT}" | tee -a "${LOG_FILE}"
 echo "Config: ${CONFIG}" | tee -a "${LOG_FILE}"
@@ -51,7 +51,7 @@ N_PT=$(ls "${PSEUDO_DIR}"/*.pt 2>/dev/null | wc -l)
 echo "Pseudo-labels: ${N_SEM} semantic, ${N_INST} instance, ${N_PT} distribution files" | tee -a "${LOG_FILE}"
 
 # ─── Launch training ───
-echo "Launching Mask2Former training..." | tee -a "${LOG_FILE}"
+echo "Launching Mask2Former Swin-Tiny training..." | tee -a "${LOG_FILE}"
 
 python refs/cups/train.py \
     --experiment_config_file "${CONFIG}" \

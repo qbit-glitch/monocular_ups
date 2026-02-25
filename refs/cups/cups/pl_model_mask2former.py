@@ -93,7 +93,7 @@ class Mask2FormerUnsupervisedModel(UnsupervisedModel):
 
         # Log visualizations periodically
         if ((self.global_step) % self.hparams.config.TRAINING.LOG_MEDIA_N_STEPS) == 0:
-            self.log_visualizations(batch_aug, prediction)
+            self.log_visualizations(batch, prediction)
 
         return {"loss": loss}
 

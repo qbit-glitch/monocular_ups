@@ -99,13 +99,13 @@ class PanopticQualitySemanticMatching(PanopticQualityTM):
         self.add_state("targets", default=[], dist_reduce_fx=None)
 
     def _apply(self, fn):
-        """Override to handle MPS float64 limitation."""
-        def safe_fn(t):
-            # Pre-convert float64 -> float32 before MPS transfer
-            if isinstance(t, Tensor) and t.dtype == torch.float64:
-                t = t.to(torch.float32)
-            return fn(t)
-        return super()._apply(safe_fn)
+        """Keep metric on CPU — MPS doesn't support float64 required by PQ computation.
+
+        torchmetrics PanopticQuality internally creates float64 tensors on the
+        metric's device.  MPS cannot handle float64, so we prevent the metric
+        (and all its state tensors) from ever being moved off CPU.
+        """
+        return self
 
     def _cost_matrix_update(
         self,
@@ -172,8 +172,8 @@ class PanopticQualitySemanticMatching(PanopticQualityTM):
         cost_matrix_update: Tensor = self._cost_matrix_update(
             semantic_segmentation_pred, semantic_segmentation_target, self.num_classes, self.num_clusters
         )
-        # Update state
-        self.cost_matrix += cost_matrix_update
+        # Update state (ensure device match — inputs may be CPU while state is on model device)
+        self.cost_matrix += cost_matrix_update.to(self.cost_matrix.device)
 
     @staticmethod
     def map_to_target(panoptic_segmentation: Tensor, assignments: Tensor | None) -> Tensor:
