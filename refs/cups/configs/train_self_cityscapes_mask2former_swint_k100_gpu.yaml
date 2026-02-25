@@ -1,0 +1,80 @@
+# Stage-3 self-training: Mask2Former Swin-Tiny on RTX A6000 Pro (48GB)
+# EMA teacher-student: teacher generates pseudo-labels on-the-fly
+#
+# Key settings:
+#   - 3 rounds × 500 steps = 1500 total steps
+#   - LR = 0.00001 (10× smaller than stage-2)
+#   - Teacher EMA momentum = 0.999
+#   - TTA at 3 scales for robust pseudo-label generation
+#   - Only decoder + class_embed trained (backbone frozen)
+#   - bf16-mixed precision
+#
+# IMPORTANT: Requires leftImg8bit_sequence/ in Cityscapes root.
+# If you only have leftImg8bit/, create a symlink:
+#   cd datasets/cityscapes && ln -s leftImg8bit leftImg8bit_sequence
+#
+# Usage:
+#   PYTHONPATH=refs/cups:$PYTHONPATH python refs/cups/train_self.py \
+#       --experiment_config_file refs/cups/configs/train_self_cityscapes_mask2former_swint_k100_gpu.yaml \
+#       --disable_wandb
+DATA:
+  CROP_RESOLUTION: (640, 1280)
+  SCALE: 0.625
+  DATASET: "cityscapes"
+  ROOT: "datasets/cityscapes/"
+  ROOT_VAL: "datasets/cityscapes/"
+MODEL:
+  BACKBONE_TYPE: "mask2former_swinl"
+  CHECKPOINT: "experiments/experiments/cups_mask2former_swint_k100_stage2/Unsupervised Panoptic Segmentation/ovkt6t6w/checkpoints/last.ckpt"
+  INFERENCE_CONFIDENCE_THRESHOLD: 0.5
+  TTA_INFERENCE_CONFIDENCE_THRESHOLD: 0.7
+  TTA_SCALES: [0.5, 0.75, 1.0]
+  MASK2FORMER:
+    PRETRAINED: "facebook/mask2former-swin-tiny-coco-panoptic"
+    NUM_QUERIES: 100
+    BACKBONE_LR_MULTIPLIER: 0.0
+    WEIGHT_DECAY: 0.05
+    NO_OBJECT_WEIGHT: 0.1
+    CLASS_EMBED_LR_MULTIPLIER: 10.0
+TRAINING:
+  BATCH_SIZE: 4
+  ACCUMULATE_GRAD_BATCHES: 4
+  PRECISION: "bf16-mixed"
+  OPTIMIZER: "adamw"
+  ADAMW:
+    LEARNING_RATE: 0.00001
+    WEIGHT_DECAY: 0.00001
+  GRADIENT_CLIP_ALGORITHM: "norm"
+  GRADIENT_CLIP_VAL: 0.01
+  VAL_EVERY_N_STEPS: 50
+  DROP_LOSS: False
+  DROP_LOSS_IOU_THRESHOLD: 0.4
+SELF_TRAINING:
+  ROUND_STEPS: 500
+  ROUNDS: 3
+  USE_DROP_LOSS: False
+  SEMANTIC_SEGMENTATION_THRESHOLD: 0.5
+  CONFIDENCE_STEP: 0.05
+AUGMENTATION:
+  COPY_PASTE: True
+  MAX_NUM_PASTED_OBJECTS: 8
+  NUM_STEPS_STARTUP: 0
+  RESOLUTIONS:
+    - [384, 768]
+    - [416, 832]
+    - [448, 896]
+    - [480, 960]
+    - [512, 1024]
+    - [544, 1088]
+    - [576, 1152]
+    - [640, 1280]
+    - [672, 1344]
+    - [704, 1408]
+SYSTEM:
+  ACCELERATOR: "gpu"
+  NUM_GPUS: 1
+  NUM_WORKERS: 4
+  LOG_PATH: "experiments"
+  RUN_NAME: "cups_mask2former_swint_k100_stage3_self"
+VALIDATION:
+  CACHE_DEVICE: "cpu"

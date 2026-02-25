@@ -165,22 +165,38 @@ def main() -> None:
     if getattr(config, "MASK_REFINEMENT", None) is not None and config.MASK_REFINEMENT.ENABLE:
         mask_refiner = MaskRefiner.from_config(config)
         log.info("Mask refinement enabled.")
-    # Init model
-    model: LightningModule = cups.build_model_self(
-        config=config,
-        thing_classes=thing_classes,
-        stuff_classes=stuff_classes,
-        thing_pseudo_classes=None,
-        stuff_pseudo_classes=None,
-        class_weights=None,
-        photometric_augmentation=PhotometricAugmentations(),
-        freeze_bn=True,
-        resolution_jitter_augmentation=ResolutionJitter(
-            scales=None,
-            resolutions=config.AUGMENTATION.RESOLUTIONS,
-        ),
-        mask_refiner=mask_refiner,
-    )
+    # Init model — route based on backbone type
+    backbone_type = getattr(config.MODEL, "BACKBONE_TYPE", "resnet50")
+    if backbone_type.startswith("mask2former"):
+        log.info("Self-training: Using Mask2Former backbone")
+        model: LightningModule = cups.build_model_self_mask2former(
+            config=config,
+            thing_classes=thing_classes,
+            stuff_classes=stuff_classes,
+            thing_pseudo_classes=None,
+            stuff_pseudo_classes=None,
+            photometric_augmentation=PhotometricAugmentations(),
+            resolution_jitter_augmentation=ResolutionJitter(
+                scales=None,
+                resolutions=config.AUGMENTATION.RESOLUTIONS,
+            ),
+        )
+    else:
+        model: LightningModule = cups.build_model_self(
+            config=config,
+            thing_classes=thing_classes,
+            stuff_classes=stuff_classes,
+            thing_pseudo_classes=None,
+            stuff_pseudo_classes=None,
+            class_weights=None,
+            photometric_augmentation=PhotometricAugmentations(),
+            freeze_bn=True,
+            resolution_jitter_augmentation=ResolutionJitter(
+                scales=None,
+                resolutions=config.AUGMENTATION.RESOLUTIONS,
+            ),
+            mask_refiner=mask_refiner,
+        )
     # Init copy-paste augmentation
     model.copy_paste_augmentation = (
         CopyPasteAugmentation(
