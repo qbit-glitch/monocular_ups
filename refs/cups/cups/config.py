@@ -37,6 +37,14 @@ _C.MODEL.USE_DINO = True
 _C.MODEL.BACKBONE_TYPE = "resnet50"
 # Freeze DINOv2 backbone (only used when BACKBONE_TYPE="dinov2_vitb")
 _C.MODEL.DINOV2_FREEZE = True
+# Mask2Former-specific config (only used when BACKBONE_TYPE="mask2former_swinl")
+_C.MODEL.MASK2FORMER = CfgNode()
+_C.MODEL.MASK2FORMER.PRETRAINED = "facebook/mask2former-swin-large-coco-panoptic"
+_C.MODEL.MASK2FORMER.NUM_QUERIES = 200
+_C.MODEL.MASK2FORMER.BACKBONE_LR_MULTIPLIER = 0.0
+_C.MODEL.MASK2FORMER.WEIGHT_DECAY = 0.05
+_C.MODEL.MASK2FORMER.NO_OBJECT_WEIGHT = 0.1
+_C.MODEL.MASK2FORMER.CLASS_EMBED_LR_MULTIPLIER = 10.0
 # Set model checkpoint
 _C.MODEL.CHECKPOINT = None
 # Set inference confidence threshold

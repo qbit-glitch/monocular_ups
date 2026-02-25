@@ -67,7 +67,7 @@ AUGMENTATION:
     - [704, 1408]
 SYSTEM:
   ACCELERATOR: "gpu"
-  NUM_GPUS: 2
+  NUM_GPUS: 1
   NUM_WORKERS: 4
   LOG_PATH: "experiments"
   RUN_NAME: "cups_resnet50_k100_stage3_self"

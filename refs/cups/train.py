@@ -179,37 +179,59 @@ def main() -> None:
         drop_last=False,
         pin_memory=False,
     )
-    # Init model
-    model: LightningModule = cups.build_model_pseudo(
-        config=config,
-        thing_classes=thing_classes,
-        stuff_classes=stuff_classes,
-        thing_pseudo_classes=training_dataset.things_classes,
-        stuff_pseudo_classes=training_dataset.stuff_classes,
-        class_weights=(
-            tuple(
-                (
-                    1.0 / (torch.tensor(training_dataset.class_distribution) * len(training_dataset.class_distribution))
-                ).tolist()
-            )
-            if config.TRAINING.CLASS_WEIGHTING
-            else None
-        ),
-        copy_paste_augmentation=(
-            CopyPasteAugmentation(
-                thing_class=len(training_dataset.stuff_classes),
-                max_num_pasted_objects=config.AUGMENTATION.MAX_NUM_PASTED_OBJECTS,
-            )
-            if config.AUGMENTATION.COPY_PASTE
-            else None
-        ),
-        photometric_augmentation=PhotometricAugmentations(),
-        resolution_jitter_augmentation=ResolutionJitter(
-            scales=None,
-            resolutions=config.AUGMENTATION.RESOLUTIONS,
-        ),
-        class_names=class_names,
+    # Shared augmentation modules
+    copy_paste_aug = (
+        CopyPasteAugmentation(
+            thing_class=len(training_dataset.stuff_classes),
+            max_num_pasted_objects=config.AUGMENTATION.MAX_NUM_PASTED_OBJECTS,
+        )
+        if config.AUGMENTATION.COPY_PASTE
+        else None
     )
+    photometric_aug = PhotometricAugmentations()
+    resolution_jitter_aug = ResolutionJitter(
+        scales=None,
+        resolutions=config.AUGMENTATION.RESOLUTIONS,
+    )
+    class_weights_val = (
+        tuple(
+            (
+                1.0 / (torch.tensor(training_dataset.class_distribution) * len(training_dataset.class_distribution))
+            ).tolist()
+        )
+        if config.TRAINING.CLASS_WEIGHTING
+        else None
+    )
+
+    # Init model — route based on backbone type
+    backbone_type = getattr(config.MODEL, "BACKBONE_TYPE", "resnet50")
+    if backbone_type == "mask2former_swinl":
+        log.info("Using Mask2Former Swin-L backbone")
+        model: LightningModule = cups.build_model_mask2former(
+            config=config,
+            thing_classes=thing_classes,
+            stuff_classes=stuff_classes,
+            thing_pseudo_classes=training_dataset.things_classes,
+            stuff_pseudo_classes=training_dataset.stuff_classes,
+            copy_paste_augmentation=copy_paste_aug,
+            photometric_augmentation=photometric_aug,
+            resolution_jitter_augmentation=resolution_jitter_aug,
+            class_weights=class_weights_val,
+            class_names=class_names,
+        )
+    else:
+        model: LightningModule = cups.build_model_pseudo(
+            config=config,
+            thing_classes=thing_classes,
+            stuff_classes=stuff_classes,
+            thing_pseudo_classes=training_dataset.things_classes,
+            stuff_pseudo_classes=training_dataset.stuff_classes,
+            class_weights=class_weights_val,
+            copy_paste_augmentation=copy_paste_aug,
+            photometric_augmentation=photometric_aug,
+            resolution_jitter_augmentation=resolution_jitter_aug,
+            class_names=class_names,
+        )
     # Print model
     log.info(model)
     # Init experiments folder since W&B otherwise warns and uses temp
